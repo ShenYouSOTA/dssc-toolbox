@@ -218,6 +218,8 @@ just demo-building BLD-001    # 按建筑 ID 过滤
 just demo-cluster             # 运行完整集群 Demo (ingress 直连)
 just demo-cluster-health      # 仅健康检查
 
+# 完整流程结束后，A→B 结构化交付结果位于 demo/deliverables/
+
 # 集群管理
 just up                       # 一键启动: k3s → 基础设施 → 应用 → smoke test
 just down                     # 一键停止 (关机前，保留镜像缓存)

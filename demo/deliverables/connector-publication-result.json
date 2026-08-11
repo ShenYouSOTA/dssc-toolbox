@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "1.0",
+  "generatedAt": "2026-08-11T00:00:00Z",
+  "observedAt": "2026-07-04T12:39:08Z",
+  "responsibleParty": "DSSC Group A",
+  "artifactOrigin": "log-derived-historical-snapshot",
+  "success": true,
+  "executionMode": "fiware-real-cluster",
+  "proposedMapping": {
+    "canonicalOfferingId": "urn:dssc:service-offering:building-energy-hourly-v1",
+    "decisionStatus": "proposed-pending-ab-confirmation"
+  },
+  "publication": {
+    "spec_id": "urn:ngsi-ld:product-specification:76ab9aad-8dc2-43c2-a6db-7191494a96eb",
+    "offering_id": "urn:ngsi-ld:product-offering:9bf7b573-12c9-4e5c-8761-6df190965aa7",
+    "resource": {
+      "id": "urn:ngsi-ld:Building:BLD-001",
+      "httpStatus": 201
+    },
+    "providerIdentity": {
+      "did": "did:web:mp-operations.org",
+      "registryUrl": "https://tir.127.0.0.1.nip.io/v4/issuers",
+      "httpStatus": 200,
+      "registered": true
+    }
+  },
+  "retrievedResourceIds": [
+    "urn:ngsi-ld:Building:BLD-001"
+  ],
+  "overallDemoSuccess": true,
+  "evidenceSource": "../logs/demo-real-20260704-203904.log",
+  "containsSensitiveCredentials": false
+}

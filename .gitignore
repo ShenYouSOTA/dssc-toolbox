@@ -21,4 +21,8 @@ Desktop.ini
 data-space-connector/
 .ospec/
 AGENTS.md
+DSSC-project/
 
+# Python runtime artifacts
+__pycache__/
+*.py[cod]

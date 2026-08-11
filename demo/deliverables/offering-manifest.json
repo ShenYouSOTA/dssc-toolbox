@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "1.0",
+  "generatedAt": "2026-07-04T12:39:08Z",
+  "responsibleParty": "DSSC Group A",
+  "canonicalOffering": {
+    "id": "urn:dssc:service-offering:building-energy-hourly-v1",
+    "idDecisionStatus": "proposed-pending-ab-confirmation",
+    "providerId": "did:web:mp-operations.org",
+    "providerName": "Energy Data Provider Ltd.",
+    "datasetId": "building-energy-hourly-v1",
+    "datasetUri": "urn:dssc:dataset:building-energy-hourly-v1",
+    "datasetUriDecisionStatus": "proposed-pending-ab-confirmation",
+    "name": "Building Energy Consumption Dataset API",
+    "description": "Hourly energy consumption data for buildings in Shenzhen",
+    "version": "0.1.0",
+    "license": "https://creativecommons.org/licenses/by/4.0/",
+    "policy": {
+      "purpose": [
+        "research",
+        "analytics"
+      ],
+      "attributionRequired": true,
+      "redistributionAllowed": false,
+      "retention": "not-defined"
+    }
+  },
+  "deployment": {
+    "platform": "FIWARE Data Space Connector",
+    "environment": "local-real-cluster",
+    "productOfferingId": "urn:ngsi-ld:product-offering:9bf7b573-12c9-4e5c-8761-6df190965aa7",
+    "productSpecificationId": "urn:ngsi-ld:product-specification:76ab9aad-8dc2-43c2-a6db-7191494a96eb",
+    "catalogueUrl": "https://tm-forum-api.127.0.0.1.nip.io/tmf-api/productCatalogManagement/v4/productOffering",
+    "resourceIds": [
+      "urn:ngsi-ld:Building:BLD-001"
+    ],
+    "endpoint": "https://scorpio-provider.127.0.0.1.nip.io/ngsi-ld/v1/entities/urn:ngsi-ld:Building:BLD-001",
+    "endpointType": "NGSI-LD Entity API",
+    "method": "GET",
+    "responseMediaType": "application/ld+json",
+    "openapi": "openapi-scorpio.yaml",
+    "publiclyReachable": false
+  }
+}

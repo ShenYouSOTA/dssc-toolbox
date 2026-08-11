@@ -1,0 +1,70 @@
+openapi: 3.0.3
+info:
+  title: Building Energy Real Cluster NGSI-LD Access API
+  version: 0.1.0
+  description: >-
+    Deployed FIWARE Real Cluster access contract for the building resource used
+    by the A-group delivery. This documents the observed Scorpio endpoint, not
+    the separate mock business API.
+servers:
+  - url: https://scorpio-provider.127.0.0.1.nip.io
+    description: Local FIWARE Real Cluster ingress
+paths:
+  /ngsi-ld/v1/entities/{entityId}:
+    get:
+      operationId: getBuildingEnergyEntity
+      summary: Retrieve the NGSI-LD building resource used by the energy offering
+      parameters:
+        - name: entityId
+          in: path
+          required: true
+          description: NGSI-LD entity identifier.
+          schema:
+            type: string
+          example: urn:ngsi-ld:Building:BLD-001
+      responses:
+        "200":
+          description: NGSI-LD entity returned successfully.
+          content:
+            application/ld+json:
+              schema:
+                $ref: "#/components/schemas/BuildingEntity"
+        "404":
+          description: Entity not found.
+components:
+  schemas:
+    NgsiLdProperty:
+      type: object
+      required:
+        - type
+        - value
+      properties:
+        type:
+          type: string
+          enum:
+            - Property
+        value: {}
+    BuildingEntity:
+      type: object
+      required:
+        - id
+        - type
+      properties:
+        id:
+          type: string
+          example: urn:ngsi-ld:Building:BLD-001
+        type:
+          type: string
+          example: Building
+        name:
+          $ref: "#/components/schemas/NgsiLdProperty"
+        address:
+          $ref: "#/components/schemas/NgsiLdProperty"
+        datasetId:
+          $ref: "#/components/schemas/NgsiLdProperty"
+        providerName:
+          $ref: "#/components/schemas/NgsiLdProperty"
+        license:
+          $ref: "#/components/schemas/NgsiLdProperty"
+        readings:
+          $ref: "#/components/schemas/NgsiLdProperty"

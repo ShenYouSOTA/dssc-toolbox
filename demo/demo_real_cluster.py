@@ -16,12 +16,14 @@ import argparse
 import json
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Optional
 
 import httpx
 
 from config import (
+    DEMO_DIR,
     KC_CLIENT_ID,
     KC_PASSWORD,
     KC_REALM,
@@ -30,6 +32,16 @@ from config import (
 )
 
 log = setup_logging("cluster-demo")
+
+PROVIDER_NAME = "Energy Data Provider Ltd."
+PROVIDER_DID = "did:web:mp-operations.org"
+CONSUMER_DID = "did:web:fancy-marketplace.biz"
+DATASET_ID = "building-energy-hourly-v1"
+DATASET_URI = "urn:dssc:dataset:building-energy-hourly-v1"
+CANONICAL_OFFERING_ID = "urn:dssc:service-offering:building-energy-hourly-v1"
+OFFERING_VERSION = "0.1.0"
+RESOURCE_ID = "urn:ngsi-ld:Building:BLD-001"
+DELIVERABLES_DIR = DEMO_DIR / "deliverables"
 
 # ============================================================
 # 集群 Ingress 端点
@@ -46,6 +58,123 @@ ENDPOINTS = {
     "Verifier": "https://verifier.mp-operations.org",
     "APISIX": "https://mp-data-service.127.0.0.1.nip.io",
 }
+
+CATALOGUE_URL = f"{ENDPOINTS['TMForum API']}/tmf-api/productCatalogManagement/v4/productOffering"
+RESOURCE_ENDPOINT = f"{ENDPOINTS['Scorpio']}/ngsi-ld/v1/entities/{RESOURCE_ID}"
+
+
+def write_json(path: Path, content: dict) -> None:
+    """Write a deterministic, UTF-8 JSON delivery artifact."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(content, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def build_provider_profile(generated_at: str, registration_observed: bool) -> dict:
+    return {
+        "schemaVersion": "1.0",
+        "generatedAt": generated_at,
+        "responsibleParty": "DSSC Group A",
+        "providerId": PROVIDER_DID,
+        "providerName": PROVIDER_NAME,
+        "role": "Data Provider",
+        "identitySource": {
+            "type": "FIWARE Trusted Issuers Registry",
+            "registryUrl": f"{ENDPOINTS['TIR']}/v4/issuers",
+            "registrationObserved": registration_observed,
+        },
+        "scope": "local-real-cluster",
+        "gaiaXComplianceStatus": "to-be-validated-by-group-b",
+        "containsSensitiveCredentials": False,
+    }
+
+
+def build_offering_manifest(offering: dict, generated_at: str) -> dict:
+    return {
+        "schemaVersion": "1.0",
+        "generatedAt": generated_at,
+        "responsibleParty": "DSSC Group A",
+        "canonicalOffering": {
+            "id": CANONICAL_OFFERING_ID,
+            "idDecisionStatus": "proposed-pending-ab-confirmation",
+            "providerId": PROVIDER_DID,
+            "providerName": PROVIDER_NAME,
+            "datasetId": DATASET_ID,
+            "datasetUri": DATASET_URI,
+            "datasetUriDecisionStatus": "proposed-pending-ab-confirmation",
+            "name": "Building Energy Consumption Dataset API",
+            "description": "Hourly energy consumption data for buildings in Shenzhen",
+            "version": OFFERING_VERSION,
+            "license": "https://creativecommons.org/licenses/by/4.0/",
+            "policy": {
+                "purpose": ["research", "analytics"],
+                "attributionRequired": True,
+                "redistributionAllowed": False,
+                "retention": "not-defined",
+            },
+        },
+        "deployment": {
+            "platform": "FIWARE Data Space Connector",
+            "environment": "local-real-cluster",
+            "productOfferingId": offering.get("offering_id", ""),
+            "productSpecificationId": offering.get("spec_id", ""),
+            "catalogueUrl": CATALOGUE_URL,
+            "resourceIds": [RESOURCE_ID],
+            "endpoint": RESOURCE_ENDPOINT,
+            "endpointType": "NGSI-LD Entity API",
+            "method": "GET",
+            "responseMediaType": "application/ld+json",
+            "openapi": "openapi-scorpio.yaml",
+            "publiclyReachable": False,
+        },
+    }
+
+
+def write_delivery_artifacts(
+    offering: dict,
+    negotiation: "NegotiationState",
+    transfer: "TransferState",
+    data: list,
+    success: bool,
+    generated_at: str,
+) -> None:
+    """Persist A-group delivery evidence without tokens or credentials."""
+    registration_observed = offering.get("providerIdentity", {}).get("registered", False)
+    write_json(
+        DELIVERABLES_DIR / "provider-profile.json",
+        build_provider_profile(generated_at, registration_observed),
+    )
+    write_json(DELIVERABLES_DIR / "offering-manifest.json", build_offering_manifest(offering, generated_at))
+    write_json(
+        DELIVERABLES_DIR / "connector-publication-result.json",
+        {
+            "schemaVersion": "1.0",
+            "generatedAt": generated_at,
+            "responsibleParty": "DSSC Group A",
+            "artifactOrigin": "runtime-api-capture",
+            "success": bool(offering.get("offering_id")),
+            "executionMode": "fiware-real-cluster",
+            "canonicalOfferingId": CANONICAL_OFFERING_ID,
+            "publication": offering,
+            "retrievedResourceIds": [item.get("id") for item in data if item.get("id")],
+            "overallDemoSuccess": success,
+            "containsSensitiveCredentials": False,
+        },
+    )
+    write_json(
+        DELIVERABLES_DIR / "contract-transfer-result.json",
+        {
+            "schemaVersion": "1.0",
+            "generatedAt": generated_at,
+            "responsibleParty": "DSSC Group A",
+            "artifactOrigin": "runtime-state-record",
+            "executionMode": "simulated-state-machine",
+            "connectorExecuted": False,
+            "warning": "Negotiation and transfer states are local demo records, not Connector API responses.",
+            "negotiation": asdict(negotiation),
+            "transfer": asdict(transfer),
+            "containsSensitiveCredentials": False,
+        },
+    )
 
 
 # ============================================================
@@ -152,19 +281,34 @@ def step_create_offering(client: httpx.Client) -> dict:
 
     # 2a. Create entity in Scorpio
     print("\n  [Scorpio] 创建 Building 实体...")
+    sample_path = DEMO_DIR / "data" / "scenarios" / "DSSC_Minimal_Energy_Scenario" / "data" / "building-energy-sample.json"
+    sample_data = json.loads(sample_path.read_text(encoding="utf-8"))
     entity = {
-        "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld",
-        "id": "urn:ngsi-ld:Building:BLD-001",
+        "@context": [
+            "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld",
+            {
+                "datasetId": "urn:dssc:property:datasetId",
+                "providerName": "urn:dssc:property:providerName",
+                "license": "urn:dssc:property:license",
+                "readings": "urn:dssc:property:readings",
+            },
+        ],
+        "id": RESOURCE_ID,
         "type": "Building",
         "name": {"type": "Property", "value": "Shenzhen Nanshan Tower"},
         "address": {"type": "Property", "value": {"city": "Shenzhen", "district": "Nanshan"}},
+        "datasetId": {"type": "Property", "value": sample_data["datasetId"]},
+        "providerName": {"type": "Property", "value": sample_data["providerName"]},
+        "license": {"type": "Property", "value": sample_data["license"]},
+        "readings": {"type": "Property", "value": sample_data["records"]},
     }
     resp = client.post(
         f"{ENDPOINTS['Scorpio']}/ngsi-ld/v1/entities",
         json=entity,
         headers={"Content-Type": "application/ld+json", "Accept": "application/json"},
     )
-    if resp.status_code in (201, 409):
+    entity_status = resp.status_code
+    if entity_status in (201, 409):
         print(f"  ✅ 实体创建: {entity['id']} ({resp.status_code})")
         log.info("Scorpio entity created: %s", entity["id"])
     else:
@@ -175,6 +319,7 @@ def step_create_offering(client: httpx.Client) -> dict:
     spec = {
         "name": "Energy Data Specification",
         "description": "Hourly building energy consumption data",
+        "version": OFFERING_VERSION,
         "lifecycleStatus": "Active",
     }
     resp = client.post(
@@ -183,6 +328,8 @@ def step_create_offering(client: httpx.Client) -> dict:
         headers={"Content-Type": "application/json", "Accept": "application/json"},
     )
     spec_id = ""
+    spec_data = {}
+    spec_status = resp.status_code
     if resp.status_code == 201:
         spec_data = resp.json()
         spec_id = spec_data.get("id", "")
@@ -196,8 +343,37 @@ def step_create_offering(client: httpx.Client) -> dict:
     offering = {
         "name": "Building Energy Consumption Data",
         "description": "Hourly energy consumption data for buildings in Shenzhen",
+        "version": OFFERING_VERSION,
+        "externalId": CANONICAL_OFFERING_ID,
+        "isBundle": False,
+        "isSellable": True,
         "lifecycleStatus": "Active",
         "productSpecification": {"id": spec_id, "name": spec["name"]} if spec_id else {},
+        "productOfferingTerm": [
+            {
+                "name": "edc:contractDefinition",
+                "accessPolicy": {
+                    "@context": "http://www.w3.org/ns/odrl.jsonld",
+                    "odrl:uid": "urn:dssc:policy:building-energy:access",
+                    "assigner": PROVIDER_DID,
+                    "permission": [{"action": "use"}],
+                    "@type": "Offer",
+                },
+                "contractPolicy": {
+                    "@context": "http://www.w3.org/ns/odrl.jsonld",
+                    "odrl:uid": "urn:dssc:policy:building-energy:contract",
+                    "assigner": PROVIDER_DID,
+                    "permission": [
+                        {
+                            "action": "use",
+                            "duty": [{"action": "attribute"}],
+                        }
+                    ],
+                    "prohibition": [{"action": "distribute"}],
+                    "@type": "Offer",
+                },
+            }
+        ],
     }
     resp = client.post(
         f"{ENDPOINTS['TMForum API']}/tmf-api/productCatalogManagement/v4/productOffering",
@@ -205,6 +381,8 @@ def step_create_offering(client: httpx.Client) -> dict:
         headers={"Content-Type": "application/json", "Accept": "application/json"},
     )
     offering_id = ""
+    offering_data = {}
+    offering_status = resp.status_code
     if resp.status_code == 201:
         offering_data = resp.json()
         offering_id = offering_data.get("id", "")
@@ -217,11 +395,14 @@ def step_create_offering(client: httpx.Client) -> dict:
     # 2d. Verify Provider DID at TIR
     print("\n  [TIR] 验证 Provider DID 注册...")
     resp = client.get(f"{ENDPOINTS['TIR']}/v4/issuers")
+    tir_status = resp.status_code
+    provider_registered = False
     if resp.status_code == 200:
         tir_data = resp.json()
         items = tir_data.get("items", [])
         dids = [i.get("did") for i in items]
         if "did:web:mp-operations.org" in dids:
+            provider_registered = True
             print(f"  ✅ Provider DID 已注册: did:web:mp-operations.org")
         if "did:web:fancy-marketplace.biz" in dids:
             print(f"  ✅ Consumer DID 已注册: did:web:fancy-marketplace.biz")
@@ -229,7 +410,29 @@ def step_create_offering(client: httpx.Client) -> dict:
     else:
         print(f"  ⚠️  TIR 查询: {resp.status_code}")
 
-    return {"spec_id": spec_id, "offering_id": offering_id}
+    return {
+        "spec_id": spec_id,
+        "offering_id": offering_id,
+        "resource": {"id": RESOURCE_ID, "httpStatus": entity_status},
+        "productSpecification": {
+            "id": spec_id,
+            "httpStatus": spec_status,
+            "request": spec,
+            "response": spec_data,
+        },
+        "productOffering": {
+            "id": offering_id,
+            "httpStatus": offering_status,
+            "request": offering,
+            "response": offering_data,
+        },
+        "providerIdentity": {
+            "did": PROVIDER_DID,
+            "registryUrl": f"{ENDPOINTS['TIR']}/v4/issuers",
+            "httpStatus": tir_status,
+            "registered": provider_registered,
+        },
+    }
 
 
 # ============================================================
@@ -330,8 +533,8 @@ def step_contract_negotiation(client: httpx.Client, offering_id: str, token: str
 
     neg = NegotiationState()
     neg.offering_id = offering_id
-    neg.consumer_did = "did:web:fancy-marketplace.biz"
-    neg.provider_did = "did:web:mp-operations.org"
+    neg.consumer_did = CONSUMER_DID
+    neg.provider_did = PROVIDER_DID
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
     # State 1: REQUESTED
@@ -430,7 +633,7 @@ def step_retrieve_data(client: httpx.Client, token: str) -> list:
 
     # Read entity from Scorpio
     resp = client.get(
-        f"{ENDPOINTS['Scorpio']}/ngsi-ld/v1/entities/urn:ngsi-ld:Building:BLD-001",
+        RESOURCE_ENDPOINT,
         headers={"Accept": "application/ld+json"},
     )
     if resp.status_code == 200:
@@ -456,7 +659,7 @@ def step_retrieve_data(client: httpx.Client, token: str) -> list:
 
 
 def step_summary(health: dict, offering: dict, offerings: list, token: Optional[str],
-                 neg: NegotiationState, transfer: TransferState, data: list):
+                 neg: NegotiationState, transfer: TransferState, data: list) -> bool:
     print("\n" + "=" * 60)
     print("📊 流程总结")
     print("=" * 60)
@@ -486,6 +689,7 @@ def step_summary(health: dict, offering: dict, offerings: list, token: Optional[
         print("⚠️  部分步骤未完成")
 
     log.info("Demo summary: success=%s", all_ok)
+    return all_ok
 
 
 # ============================================================
@@ -525,7 +729,11 @@ def run_full_demo():
         data = step_retrieve_data(client, token or "")
 
         # Step 8: Summary
-        step_summary(health, offering, offerings, token, neg, transfer, data)
+        success = step_summary(health, offering, offerings, token, neg, transfer, data)
+
+        generated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        write_delivery_artifacts(offering, neg, transfer, data, success, generated_at)
+        print(f"\n  结构化交付结果: {DELIVERABLES_DIR}")
 
         elapsed = time.time() - start
         print(f"\n  耗时: {elapsed:.1f}s")
