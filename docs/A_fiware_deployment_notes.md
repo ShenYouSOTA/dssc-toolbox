@@ -43,6 +43,13 @@ docker exec k3s-server cat /etc/rancher/k3s/k3s.yaml > /tmp/k3s.yaml
 export KUBECONFIG=/tmp/k3s.yaml
 ```
 
+> **容器已存在时的重启：** `just up` / 上述 `docker run` 会因同名容器报 `Conflict`。
+> 直接复用已有容器即可（数据在 `k3s-data` volume 中持久化）：
+> ```bash
+> docker start k3s-server
+> docker exec k3s-server cat /etc/rancher/k3s/k3s.yaml > /tmp/k3s.yaml   # 必须刷新，旧证书/IP 会失效
+> ```
+
 ---
 
 ## macOS 环境差异
@@ -637,6 +644,32 @@ kubectl get pods -n provider | grep keycloak
 
 ---
 
+### 4.17 k3s 容器重启后的常见问题
+
+**现象 1：** `just up` 报 `Conflict. The container name "/k3s-server" is already in use`。
+
+**根因：** k3s-server 容器之前已创建（当前处于 Exited），`k3s-start` 尝试 `docker run` 同名容器。
+
+**解决方案：** 不要重建容器，直接启动并刷新 kubeconfig：
+```bash
+docker start k3s-server
+docker exec k3s-server cat /etc/rancher/k3s/k3s.yaml > /tmp/k3s.yaml
+```
+
+**现象 2：** 刷新 kubeconfig 前执行 `just k3s-wait` 会一直卡住（连不上旧 server 地址）。
+
+**现象 3：** 重启后 `mongodb-0` 长时间显示 `1/2 Running`：`mongod` 容器已 Ready，未就绪的是 `mongodb-agent` sidecar（仅 MongoDB Operator 管理用途）。TMForum / Scorpio 等依赖的是 mongod 本身，不影响 Demo 运行（另见 4.13）。
+
+**验证命令：**
+```bash
+kubectl --kubeconfig=/tmp/k3s.yaml get nodes                          # Ready
+kubectl --kubeconfig=/tmp/k3s.yaml -n provider get pod mongodb-0 \
+  -o jsonpath='{range .status.containerStatuses[*]}{.name} ready={.ready}{"\n"}{end}'
+# 预期: mongod ready=true
+```
+
+---
+
 ## 5. 配置参考
 
 ### 5.1 provider.yaml 关键配置
@@ -732,6 +765,10 @@ scorpio:
 | MongoDB agent 拉取失败 | 镜像 tag 不存在 | `kubectl describe pod mongodb-0 -n provider` | 替换为本地已有 agent 镜像 |
 | BAE charging/logic CrashLoop | SCRAM-SHA-1/256 不匹配或用户缺失 | `kubectl logs <pod> -n provider` | 创建用户 + 设置 `MONGO_AUTH_MECHANISM=SCRAM-SHA-256` |
 | Consumer 安装失败 | postgres-operator ClusterRole 冲突 | `helm install ...` 报错 | 加 `--set decentralizedIam.vcAuthentication.postgres-operator.enabled=false` |
+| `just up` 报容器名冲突 | k3s-server 容器已存在但停止 | `docker ps -a | grep k3s` | `docker start k3s-server` + 刷新 `/tmp/k3s.yaml` |
+| `just k3s-wait` 卡住 | 容器重启后 kubeconfig 失效 | `kubectl get nodes` 超时 | 重新导出 `/tmp/k3s.yaml` |
+| `mongodb-0` 一直 `1/2` | mongodb-agent sidecar 未就绪（mongod 正常） | `kubectl get pod mongodb-0 -n provider -o jsonpath=...` | 无需处理，不影响 Demo |
+| `POST /productOffering` 400 | term 缺 `@schemaLocation` 或含 `externalId` | 查看返回 `errors[].message` | 加 schemaLocation；移除 externalId（见 Demo 文档 3.2.7/3.2.8） |
 
 ---
 
@@ -751,8 +788,8 @@ scorpio:
 
 ## 8. 相关文档
 
-- [架构与通信流程](./ARCHITECTURE.md)
-- [README](./README.md)
-- [数据交换 Demo](./data_exchange_demo.md)
+- [架构与通信流程](../demo/ARCHITECTURE.md)
+- [README](../demo/README.md)
+- [数据交换 Demo](./A_data_exchange_demo.md)
 - [项目概述](../wiki/1-xiang-mu-gai-shu.md)
 - [快速部署指南](../wiki/2-kuai-su-bu-shu-zhi-nan.md)

@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0",
-  "generatedAt": "2026-07-04T12:39:08Z",
+  "generatedAt": "2026-08-13T02:11:07Z",
   "responsibleParty": "DSSC Group A",
   "canonicalOffering": {
     "id": "urn:dssc:service-offering:building-energy-hourly-v1",
@@ -21,14 +21,15 @@
       ],
       "attributionRequired": true,
       "redistributionAllowed": false,
-      "retention": "not-defined"
+      "retention": "P30D",
+      "retentionDescription": "Consumer must delete retrieved data within 30 days after the contract agreement."
     }
   },
   "deployment": {
     "platform": "FIWARE Data Space Connector",
     "environment": "local-real-cluster",
-    "productOfferingId": "urn:ngsi-ld:product-offering:9bf7b573-12c9-4e5c-8761-6df190965aa7",
-    "productSpecificationId": "urn:ngsi-ld:product-specification:76ab9aad-8dc2-43c2-a6db-7191494a96eb",
+    "productOfferingId": "urn:ngsi-ld:product-offering:0c440b1c-6573-4d70-91d9-11ea79f3e2d8",
+    "productSpecificationId": "urn:ngsi-ld:product-specification:95280867-5224-4325-b4db-c0de9c8cb188",
     "catalogueUrl": "https://tm-forum-api.127.0.0.1.nip.io/tmf-api/productCatalogManagement/v4/productOffering",
     "resourceIds": [
       "urn:ngsi-ld:Building:BLD-001"

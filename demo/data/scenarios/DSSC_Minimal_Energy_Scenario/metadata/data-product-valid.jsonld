@@ -25,6 +25,10 @@
     "license": {
       "@id": "dct:license",
       "@type": "@id"
+    },
+    "dataRetention": {
+      "@id": "ex:dataRetention",
+      "@type": "xsd:duration"
     }
   },
   "@id": "https://example.org/dssc-energy/datasets/building-energy-hourly-v1",
@@ -40,5 +44,6 @@
   "spatialCoverage": "Shenzhen demo district",
   "temporalStart": "2026-05-01",
   "temporalEnd": "2026-05-02",
-  "license": "https://creativecommons.org/licenses/by/4.0/"
+  "license": "https://creativecommons.org/licenses/by/4.0/",
+  "dataRetention": "P30D"
 }

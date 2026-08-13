@@ -41,6 +41,10 @@ DATASET_URI = "urn:dssc:dataset:building-energy-hourly-v1"
 CANONICAL_OFFERING_ID = "urn:dssc:service-offering:building-energy-hourly-v1"
 OFFERING_VERSION = "0.1.0"
 RESOURCE_ID = "urn:ngsi-ld:Building:BLD-001"
+RETENTION_PERIOD = "P30D"
+RETENTION_DESCRIPTION = (
+    "Consumer must delete retrieved data within 30 days after the contract agreement."
+)
 DELIVERABLES_DIR = DEMO_DIR / "deliverables"
 
 # ============================================================
@@ -109,7 +113,8 @@ def build_offering_manifest(offering: dict, generated_at: str) -> dict:
                 "purpose": ["research", "analytics"],
                 "attributionRequired": True,
                 "redistributionAllowed": False,
-                "retention": "not-defined",
+                "retention": RETENTION_PERIOD,
+                "retentionDescription": RETENTION_DESCRIPTION,
             },
         },
         "deployment": {
@@ -274,6 +279,65 @@ def step_health_check(client: httpx.Client) -> dict:
 # ============================================================
 
 
+def _normalize_odrl(node):
+    """TMForum API collapses single-element arrays (permission/prohibition/duty)
+    into plain objects. Normalize both sides to the list form before comparing."""
+    if isinstance(node, dict):
+        return {k: _normalize_odrl(v) for k, v in node.items()}
+    if isinstance(node, list):
+        return [_normalize_odrl(v) for v in node]
+    return node
+
+
+def verify_policy_roundtrip(client: httpx.Client, offering_id: str, offering_request: dict) -> dict:
+    """Read the ProductOffering back and confirm TMForum stored the ODRL
+    access/contract policies unchanged."""
+    result = {
+        "sourceUrl": f"{CATALOGUE_URL}/{offering_id}" if offering_id else "",
+        "httpStatus": None,
+        "accessPolicyPreserved": False,
+        "contractPolicyPreserved": False,
+        "verified": False,
+    }
+    if not offering_id:
+        result["reason"] = "offering creation failed, nothing to verify"
+        return result
+
+    resp = client.get(
+        f"{CATALOGUE_URL}/{offering_id}",
+        headers={"Accept": "application/json"},
+    )
+    result["httpStatus"] = resp.status_code
+    if resp.status_code != 200:
+        result["reason"] = f"read-back failed: {resp.status_code}"
+        return result
+
+    terms = resp.json().get("productOfferingTerm") or []
+    requested_terms = offering_request.get("productOfferingTerm") or []
+    expected_access = next((t.get("accessPolicy") for t in requested_terms if t.get("accessPolicy")), None)
+    expected_contract = next((t.get("contractPolicy") for t in requested_terms if t.get("contractPolicy")), None)
+    returned_access = next((t.get("accessPolicy") for t in terms if t.get("accessPolicy")), None)
+    returned_contract = next((t.get("contractPolicy") for t in terms if t.get("contractPolicy")), None)
+
+    def canon(policy):
+        """Wrap collapsed singleton objects back into lists for comparison."""
+        def wrap_lists(n):
+            if isinstance(n, dict):
+                return {k: ([wrap_lists(v)] if k in ("permission", "prohibition", "duty") and isinstance(v, dict)
+                            else wrap_lists(v)) for k, v in n.items()}
+            if isinstance(n, list):
+                return [wrap_lists(v) for v in n]
+            return n
+        return wrap_lists(_normalize_odrl(policy))
+
+    result["accessPolicyPreserved"] = expected_access is not None and canon(returned_access) == canon(expected_access)
+    result["contractPolicyPreserved"] = expected_contract is not None and canon(returned_contract) == canon(expected_contract)
+    result["verified"] = result["accessPolicyPreserved"] and result["contractPolicyPreserved"]
+    if result["verified"]:
+        log.info("ODRL policy round-trip verified for offering %s", offering_id)
+    return result
+
+
 def step_create_offering(client: httpx.Client) -> dict:
     print("\n" + "=" * 60)
     print("🏢 步骤2: Provider 创建 Data Offering")
@@ -344,7 +408,6 @@ def step_create_offering(client: httpx.Client) -> dict:
         "name": "Building Energy Consumption Data",
         "description": "Hourly energy consumption data for buildings in Shenzhen",
         "version": OFFERING_VERSION,
-        "externalId": CANONICAL_OFFERING_ID,
         "isBundle": False,
         "isSellable": True,
         "lifecycleStatus": "Active",
@@ -352,6 +415,7 @@ def step_create_offering(client: httpx.Client) -> dict:
         "productOfferingTerm": [
             {
                 "name": "edc:contractDefinition",
+                "@schemaLocation": "https://raw.githubusercontent.com/wistefan/edc-dsc/refs/heads/init/schemas/contract-definition.json",
                 "accessPolicy": {
                     "@context": "http://www.w3.org/ns/odrl.jsonld",
                     "odrl:uid": "urn:dssc:policy:building-energy:access",
@@ -366,7 +430,20 @@ def step_create_offering(client: httpx.Client) -> dict:
                     "permission": [
                         {
                             "action": "use",
-                            "duty": [{"action": "attribute"}],
+                            "duty": [
+                                {"action": "attribute"},
+                                {
+                                    "action": "delete",
+                                    "constraint": {
+                                        "leftOperand": "odrl:elapsedTime",
+                                        "operator": "gteq",
+                                        "rightOperand": {
+                                            "@value": RETENTION_PERIOD,
+                                            "@type": "xsd:duration",
+                                        },
+                                    },
+                                },
+                            ],
                         }
                     ],
                     "prohibition": [{"action": "distribute"}],
@@ -391,6 +468,13 @@ def step_create_offering(client: httpx.Client) -> dict:
         log.info("ProductOffering created: %s", offering_id)
     else:
         print(f"  ⚠️  Offering: {resp.status_code} {resp.text[:100]}")
+
+    # 2c-verify. Read the offering back and confirm the ODRL policies round-trip unchanged
+    policy_verification = verify_policy_roundtrip(client, offering_id, offering)
+    if policy_verification.get("verified"):
+        print(f"  ✅ ODRL policy 回读一致 (access + contract policy 原样返回)")
+    elif offering_id:
+        print(f"  ⚠️  ODRL policy 回读不一致: {policy_verification}")
 
     # 2d. Verify Provider DID at TIR
     print("\n  [TIR] 验证 Provider DID 注册...")
@@ -426,6 +510,7 @@ def step_create_offering(client: httpx.Client) -> dict:
             "request": offering,
             "response": offering_data,
         },
+        "policyVerification": policy_verification,
         "providerIdentity": {
             "did": PROVIDER_DID,
             "registryUrl": f"{ENDPOINTS['TIR']}/v4/issuers",
@@ -667,6 +752,9 @@ def step_summary(health: dict, offering: dict, offerings: list, token: Optional[
     checks = [
         ("健康检查", all(health.values()), f"{sum(v for v in health.values())}/{len(health)} 通过"),
         ("创建 Offering", bool(offering.get("offering_id")), offering.get("offering_id", "N/A")),
+        ("ODRL policy 回读一致", offering.get("policyVerification", {}).get("verified", False),
+         f"access={offering.get('policyVerification', {}).get('accessPolicyPreserved')} "
+         f"contract={offering.get('policyVerification', {}).get('contractPolicyPreserved')}"),
         ("发现 Catalog", len(offerings) > 0, f"{len(offerings)} 个 Offerings"),
         ("Consumer 认证", token is not None, "Token 获取成功"),
         ("Contract Negotiation", neg.state == "AGREED", f"{neg.state} | {neg.contract_id}"),

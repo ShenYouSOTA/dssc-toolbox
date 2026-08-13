@@ -81,15 +81,15 @@ Provider (FastAPI :8000)                Consumer (DSSCConsumer)
 ```
 
 **代码位置：**
-- `provider_server.py:260-286` — 认证端点，签发 JWT
-- `provider_server.py:317-368` — Offering 创建，加载 JSON-LD + OpenAPI
-- `provider_server.py:425-468` — 协商状态机，自动流转到 AGREED
-- `provider_server.py:499-554` — 传输状态机，检查前置条件后自动流转
-- `provider_server.py:580-611` — 数据端点，验证 token 后返回过滤数据
-- `consumer_client.py:53-77` — 目录发现
-- `consumer_client.py:122-158` — 认证
-- `consumer_client.py:164-203` — 协商
-- `consumer_client.py:260-298` — 数据获取
+- `provider_server.py:288-315` — 认证端点，签发 JWT
+- `provider_server.py:337-395` — Offering 创建，加载 JSON-LD + OpenAPI
+- `provider_server.py:446-492` — 协商状态机，自动流转到 AGREED
+- `provider_server.py:521-578` — 传输状态机，检查前置条件后自动流转
+- `provider_server.py:603-640` — 数据端点，验证 token 后返回过滤数据
+- `consumer_client.py:55-84` — 目录发现
+- `consumer_client.py:124-165` — 认证
+- `consumer_client.py:166-210` — 协商
+- `consumer_client.py:262-313` — 数据获取
 
 ### 2.2 Real Cluster Demo 流程
 
@@ -120,7 +120,14 @@ Python Client               k3s 集群 (via nginx-ingress)
     │  POST /tmf-api/.../productOffering│
     │  Host: tm-forum-api          │
     │─────────────────────────────→│  TMForum: 创建 ProductOffering
-    │  ◄── offering_id ───────────│
+    │  ◄── offering_id ───────────│  (productOfferingTerm 携带 ODRL
+    │                              │   accessPolicy + contractPolicy,
+    │                              │   含 P30D 数据保留 duty)
+    │  ②.5 ODRL Policy 回读校验    │
+    │  GET /tmf-api/.../productOffering/{id}│
+    │─────────────────────────────→│  TMForum: 读回 Offering
+    │  ◄── offering ──────────────│  比对 access/contract policy
+    │                              │  是否原样保留（归一化后比较）
     │                              │
     │  ③ Consumer 发现 Catalog     │
     │  GET /tmf-api/.../productOffering│
@@ -156,13 +163,14 @@ Python Client               k3s 集群 (via nginx-ingress)
 ```
 
 **代码位置：**
-- `demo_real_cluster.py:114-138` — 健康检查（7 个端点并行）
-- `demo_real_cluster.py:146-230` — 创建 Offering（Scorpio + TMForum + TIR 验证）
-- `demo_real_cluster.py:238-257` — Catalog 发现
-- `demo_real_cluster.py:265-313` — Keycloak 认证
-- `demo_real_cluster.py:321-366` — Contract Negotiation（本地 dataclass）
-- `demo_real_cluster.py:374-413` — Transfer Process（本地 dataclass）
-- `demo_real_cluster.py:421-445` — 数据获取
+- `demo_real_cluster.py:250-280` — 健康检查（7 个端点并行）
+- `demo_real_cluster.py:341-527` — 创建 Offering（Scorpio + TMForum + Policy 回读 + TIR 验证）
+- `demo_real_cluster.py:282-340` — ODRL policy 回读校验（含单元素数组归一化）
+- `demo_real_cluster.py:528-554` — Catalog 发现
+- `demo_real_cluster.py:555-613` — Keycloak 认证
+- `demo_real_cluster.py:614-666` — Contract Negotiation（本地 dataclass）
+- `demo_real_cluster.py:667-713` — Transfer Process（本地 dataclass）
+- `demo_real_cluster.py:714-745` — 数据获取
 
 ---
 
@@ -202,7 +210,7 @@ server_thread.start()
 **解决方案：** 在每个需要认证的端点函数内部手动调用 `verify_token()`，而非使用 FastAPI 的 `Depends` 中间件（因为部分端点可选认证）。
 
 ```python
-# provider_server.py:289-299
+# provider_server.py:317-327
 def verify_token(authorization: str) -> dict:
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Invalid authorization header")
@@ -222,7 +230,7 @@ def verify_token(authorization: str) -> dict:
 **选择：** 自动流转（Demo 优先考虑演示效果），但在状态历史中记录每一步。
 
 ```python
-# provider_server.py:425-468
+# provider_server.py:446-492
 # 创建 negotiation 后立即自动推进到 AGREED
 neg.state = NegotiationState.REQUESTED
 neg.state_history.append(...)
@@ -280,7 +288,7 @@ OPENAPI_DIR = scenario_mock_api_dir()
 **解决方案：** 优先使用 `token_endpoint`，回退到 `token-service` + `/token`，最后使用默认路径。
 
 ```python
-# demo_real_cluster.py:277-284
+# demo_real_cluster.py:567-576
 realm = resp.json()
 token_endpoint = realm.get("token_endpoint", "")
 if not token_endpoint:
@@ -300,7 +308,7 @@ if not token_endpoint:
 **解决方案：** 健康检查时将期望状态码设为 400。
 
 ```python
-# demo_real_cluster.py:133
+# demo_real_cluster.py:269
 results["Scorpio"] = check_endpoint(client, "Scorpio",
     f"{ENDPOINTS['Scorpio']}/ngsi-ld/v1/entities", expect_status=400)
 ```
@@ -322,7 +330,7 @@ results["Scorpio"] = check_endpoint(client, "Scorpio",
 **解决方案：** 使用本地 `dataclass` 模拟 Negotiation 和 Transfer 状态流转。
 
 ```python
-# demo_real_cluster.py:56-77
+# demo_real_cluster.py:190-217
 @dataclass
 class NegotiationState:
     negotiation_id: str = ""
@@ -357,6 +365,65 @@ kubectl get ingress -A -o name | xargs -I {} kubectl patch {} \
 
 **解决方案：** 确保网络连接正常。如在离线环境，需在 `/etc/hosts` 中手动添加映射。
 
+#### 3.2.7 productOfferingTerm 扩展字段必须声明 @schemaLocation
+
+**现象：** `POST /productOffering` 返回 400，错误信息为 `If no schema is provided, no additional properties are allowed`，引用链指向 `productOfferingTerm[0]`。
+
+**根因：** FIWARE TMForum API 对 ProductOfferingTerm 中的未知属性（`accessPolicy`/`contractPolicy`）要求显式声明 `@schemaLocation`，否则拒绝反序列化。官方 DSC 文档使用 EDC contract-definition schema。
+
+**解决方案：** 在 term 中加入 schema 声明（参考 `data-space-connector/doc/DSP_INTEGRATION.md`）。
+
+```python
+# demo_real_cluster.py:440-442
+{
+    "name": "edc:contractDefinition",
+    "@schemaLocation": "https://raw.githubusercontent.com/wistefan/edc-dsc/refs/heads/init/schemas/contract-definition.json",
+    "accessPolicy": {...},
+    "contractPolicy": {...},
+}
+```
+
+#### 3.2.8 TMForum VO 不支持 externalId
+
+**现象：** payload 中加入 `externalId`（或 `externalIdentifier`）后返回 400 `Schema validation failed with message If no schema is provided, no additional properties are allowed`。
+
+**根因：** 当前部署的 FIWARE TMForum API 版本的 ProductOfferingCreateVO 未定义 `externalId`/`externalIdentifier` 字段；一旦请求中存在 `@schemaLocation`，整个 VO 会走严格 schema 校验，未知字段即被拒绝。
+
+**解决方案：** 从 API payload 中移除该字段。规范 Offering ID（`urn:dssc:service-offering:building-energy-hourly-v1`）保留在交付件 `offering-manifest.json` 中，与 TMForum 内部 `offering_id` 分离维护。
+
+#### 3.2.9 TMForum 回读时单元素数组被折叠为对象
+
+**现象：** 创建时提交 `permission: [{...}]`，GET 读回后变成 `permission: {...}`（对象而非数组），导致直接做 JSON 相等比较时报"policy 不一致"。
+
+**根因：** TMForum API 的 JSON 序列化会把单元素数组折叠成对象（`permission`、`prohibition` 均如此；`duty` 等多元素数组保留数组形式）。
+
+**解决方案：** 比较前对两侧做归一化：把 `permission`/`prohibition`/`duty` 下的单对象统一包装回列表再比较。
+
+```python
+# demo_real_cluster.py:282-291 (_normalize_odrl) + verify_policy_roundtrip 中的 canon()
+def wrap_lists(n):
+    if isinstance(n, dict):
+        return {k: ([wrap_lists(v)] if k in ("permission", "prohibition", "duty") and isinstance(v, dict)
+                    else wrap_lists(v)) for k, v in n.items()}
+    ...
+```
+
+#### 3.2.10 k3s 容器重启后 kubeconfig 失效
+
+**现象：** `just up` 报 `container name "/k3s-server" is already in use`；或 `just k3s-wait` 一直卡住。
+
+**根因：** k3s 容器停止后 `just up` 会尝试 `docker run` 同名容器；另外容器重启后 `/tmp/k3s.yaml` 中的 server 地址/证书可能失效。
+
+**解决方案：** 直接启动已有容器并刷新 kubeconfig：
+
+```bash
+docker start k3s-server
+docker exec k3s-server cat /etc/rancher/k3s/k3s.yaml > /tmp/k3s.yaml
+kubectl --kubeconfig=/tmp/k3s.yaml get nodes   # 确认 Ready
+```
+
+重启后 `mongodb-0` 可能长时间显示 `1/2 Running`：mongod 容器本身已 Ready，未就绪的是 `mongodb-agent` sidecar（仅 Operator 管理用途），不影响 Demo 运行（另见部署笔记 4.13）。
+
 ### 3.3 Python 客户端踩坑
 
 #### 3.3.1 httpx vs requests
@@ -368,7 +435,7 @@ kubectl get ingress -A -o name | xargs -I {} kubectl patch {} \
 - 类型注解完善
 
 ```python
-# demo_real_cluster.py:85-86
+# demo_real_cluster.py:219-222
 def get_client() -> httpx.Client:
     return httpx.Client(verify=False, timeout=30.0, follow_redirects=True)
 ```
@@ -454,6 +521,8 @@ offering = {
 | **数据读取** | Scorpio 直连 | 简单直接 | 通过 APISIX 网关 |
 | **Negotiation/Transfer** | 本地 dataclass | Contract Management API 不可用 | 等待 API 完善 |
 | **健康检查** | 7 端点并行 | 快速、覆盖全面 | 逐个检查 |
+| **ODRL policy 校验** | 创建后回读比对 | 确认 TMForum 原样保存 policy | 信任写入结果 |
+| **数据保留要求** | ODRL duty (delete + P30D) | 写进 contractPolicy，随 Offering 发布 | 仅在 metadata 中声明 |
 
 ---
 
@@ -504,7 +573,7 @@ offering = {
 
 **Offering 创建（Mock）：**
 ```python
-# provider_server.py:338-389
+# provider_server.py:337-395
 def create_offering():
     metadata = load_metadata()  # 从当前 scenario 加载 JSON-LD
     contract = load_openapi_spec()  # 从当前 scenario 加载 OpenAPI
@@ -519,13 +588,30 @@ def create_offering():
 
 **Offering 创建（Real Cluster）：**
 ```python
-# demo_real_cluster.py:152-170
+# demo_real_cluster.py:341-527 (step_create_offering)
 # 1. Scorpio: 创建 NGSI-LD 实体
 resp = client.post(f"{ENDPOINTS['Scorpio']}/ngsi-ld/v1/entities", json=entity)
 # 2. TMForum: 创建 ProductSpecification
 resp = client.post(f"{ENDPOINTS['TMForum API']}/tmf-api/.../productSpecification", json=spec)
-# 3. TMForum: 创建 ProductOffering (引用 spec)
+# 3. TMForum: 创建 ProductOffering (引用 spec, term 携带 ODRL policy + @schemaLocation)
 resp = client.post(f"{ENDPOINTS['TMForum API']}/tmf-api/.../productOffering", json=offering)
+# 4. 回读校验: GET offering, 归一化后比对 access/contract policy
+policy_verification = verify_policy_roundtrip(client, offering_id, offering)
+```
+
+**ODRL contractPolicy（含数据保留要求）：**
+```python
+# demo_real_cluster.py:44-47 + step_create_offering 中的 productOfferingTerm
+RETENTION_PERIOD = "P30D"   # 合同达成后 30 天内必须删除数据
+contractPolicy = {
+    "permission": [{"action": "use", "duty": [
+        {"action": "attribute"},
+        {"action": "delete", "constraint": {
+            "leftOperand": "odrl:elapsedTime", "operator": "gteq",
+            "rightOperand": {"@value": "P30D", "@type": "xsd:duration"}}},
+    ]}],
+    "prohibition": [{"action": "distribute"}],
+}
 ```
 
 ### 6.2 配置项速查表
@@ -545,9 +631,9 @@ resp = client.post(f"{ENDPOINTS['TMForum API']}/tmf-api/.../productOffering", js
 
 ### 6.3 相关文档
 
-- [架构与通信流程](./ARCHITECTURE.md)
+- [架构与通信流程](../demo/ARCHITECTURE.md)
 - [部署笔记](./A_fiware_deployment_notes.md)
-- [README](./README.md)
+- [README](../demo/README.md)
 - [项目概述](../wiki/1-xiang-mu-gai-shu.md)
 - [OID4VC 认证框架](../wiki/9-oid4vc-ren-zheng-kuang-jia-vcverifier-trusted-issuers-list.md)
 - [TMForum Open API 流程](../wiki/13-tm-forum-open-apis-he-tong-guan-li-liu-cheng.md)
