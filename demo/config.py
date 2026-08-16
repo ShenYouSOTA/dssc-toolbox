@@ -75,6 +75,10 @@ PROVIDER_NAME = "Energy Data Provider Ltd."
 DATASET_ID = "building-energy-hourly-v1"
 PROVIDER_DID = "did:web:energy-provider.example.org"
 
+# 最终公网 DID (did.json 发布到 GitHub Pages, 私钥见 demo/data/keys/, demo 专用)
+# 未定稿前默认为集群内 DID; 定稿后改为路径型 did:web:<org>.github.io:<repo> 或自有域名
+PROVIDER_PUBLIC_DID = os.environ.get("DSSC_PROVIDER_DID", "did:web:mp-operations.org")
+
 # ============================================================
 # JWT / Auth
 # ============================================================

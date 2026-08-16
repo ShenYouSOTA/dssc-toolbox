@@ -345,6 +345,29 @@ demo-cluster-pf:
     cd demo && uv run python demo_real_cluster.py pf
 
 # ============================================================
+# DID 身份 (公网 did.json 托管)
+# ============================================================
+
+# 生成固定 demo 密钥对 (一次性, 提交进仓库)
+did-keygen:
+    @echo "🔑 生成 Provider demo 密钥对..."
+    cd demo && uv run python did_identity.py keygen
+
+# 由公钥生成 did.json (发布到 GitHub Pages)
+did-export did="did:web:mp-operations.org":
+    @echo "📄 生成 did.json..."
+    cd demo && uv run python did_identity.py did --did {{did}}
+
+# 输出把固定密钥导入 k3s 的命令 (替代 cert-manager 随机签发)
+did-k8s-secret:
+    cd demo && uv run python did_identity.py k8s-secret
+
+# 校验公网 did.json 与本地私钥匹配
+did-verify did="did:web:mp-operations.org":
+    @echo "🔍 校验公网 did.json..."
+    cd demo && uv run python did_identity.py verify --did {{did}}
+
+# ============================================================
 # 文档
 # ============================================================
 

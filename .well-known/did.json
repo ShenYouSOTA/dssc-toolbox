@@ -1,0 +1,25 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/did/v1"
+  ],
+  "id": "did:web:mp-operations.org",
+  "verificationMethod": [
+    {
+      "id": "did:web:mp-operations.org#key-1",
+      "type": "JsonWebKey2020",
+      "controller": "did:web:mp-operations.org",
+      "publicKeyJwk": {
+        "kty": "EC",
+        "crv": "P-256",
+        "x": "70yvq76cyQ3AzhOz0VvIKQkvm6Eff4g715DGY1KTlRY",
+        "y": "xAXY4NnaFCiTcdNHLTx4ZYbHkgY5XLfq52wdyCl1vkg"
+      }
+    }
+  ],
+  "authentication": [
+    "did:web:mp-operations.org#key-1"
+  ],
+  "assertionMethod": [
+    "did:web:mp-operations.org#key-1"
+  ]
+}
