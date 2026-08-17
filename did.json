@@ -2,12 +2,12 @@
   "@context": [
     "https://www.w3.org/ns/did/v1"
   ],
-  "id": "did:web:mp-operations.org",
+  "id": "did:web:shenyousota.github.io:dssc-toolbox",
   "verificationMethod": [
     {
-      "id": "did:web:mp-operations.org#key-1",
+      "id": "did:web:shenyousota.github.io:dssc-toolbox#key-1",
       "type": "JsonWebKey2020",
-      "controller": "did:web:mp-operations.org",
+      "controller": "did:web:shenyousota.github.io:dssc-toolbox",
       "publicKeyJwk": {
         "kty": "EC",
         "crv": "P-256",
@@ -17,9 +17,9 @@
     }
   ],
   "authentication": [
-    "did:web:mp-operations.org#key-1"
+    "did:web:shenyousota.github.io:dssc-toolbox#key-1"
   ],
   "assertionMethod": [
-    "did:web:mp-operations.org#key-1"
+    "did:web:shenyousota.github.io:dssc-toolbox#key-1"
   ]
 }

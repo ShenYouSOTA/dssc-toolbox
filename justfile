@@ -354,7 +354,7 @@ did-keygen:
     cd demo && uv run python did_identity.py keygen
 
 # 由公钥生成 did.json (发布到 GitHub Pages)
-did-export did="did:web:mp-operations.org":
+did-export did="did:web:shenyousota.github.io:dssc-toolbox":
     @echo "📄 生成 did.json..."
     cd demo && uv run python did_identity.py did --did {{did}}
 
@@ -363,7 +363,7 @@ did-k8s-secret:
     cd demo && uv run python did_identity.py k8s-secret
 
 # 校验公网 did.json 与本地私钥匹配
-did-verify did="did:web:mp-operations.org":
+did-verify did="did:web:shenyousota.github.io:dssc-toolbox":
     @echo "🔍 校验公网 did.json..."
     cd demo && uv run python did_identity.py verify --did {{did}}
 

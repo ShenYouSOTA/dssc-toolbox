@@ -682,7 +682,7 @@ cert-manager.io/private-key-algorithm: "ECDSA"
 keycloak:
   signingKey:
     keyAlgorithm: ES256
-    did: did:web:mp-operations.org
+    did: did:web:shenyousota.github.io:dssc-toolbox
 
 # MongoDB: 使用 managedMongo (非 Operator)
 mongo-operator:
@@ -696,7 +696,7 @@ decentralizedIam:
     vcverifier:
       deployment:
         verifier:
-          did: did:web:mp-operations.org
+          did: did:web:shenyousota.github.io:dssc-toolbox
           requestKeyAlgorithm: ES256
 ```
 
@@ -788,9 +788,15 @@ scorpio:
 
 ## 7.5 公网 did.json 托管（固定密钥方案）
 
-**问题：** `did:web:mp-operations.org` 只在集群内可解析（nip.io / CoreDNS），公网 DNS 不存在该域名，外部组无法无感验证；且 cert-manager 每次随机签发密钥，集群重建后公钥变化，任何人（包括换机器的自己）都无法复现签名。
+**问题：** `did:web:shenyousota.github.io:dssc-toolbox` 只在集群内可解析（nip.io / CoreDNS），公网 DNS 不存在该域名，外部组无法无感验证；且 cert-manager 每次随机签发密钥，集群重建后公钥变化，任何人（包括换机器的自己）都无法复现签名。
 
 **方案：** 仓库提交一把固定的 P-256 demo 密钥对（虚构主体，无真实价值），did.json 由公钥确定性生成并发布到 GitHub Pages，集群导入同一把私钥替代 cert-manager 随机签发。
+
+**已定稿身份（2026-08-17 全组确认）：**
+- DID：`did:web:shenyousota.github.io:dssc-toolbox`（GitHub Pages project site，仓库根 `did.json`）
+- kid：`did:web:shenyousota.github.io:dssc-toolbox#key-1`
+- 算法：ES256 / EC P-256，密钥见 `demo/data/keys/`
+- 解析 URL：https://shenyousota.github.io/dssc-toolbox/did.json
 
 **工具：** `demo/did_identity.py`（justfile 中有对应任务）：
 
@@ -804,9 +810,9 @@ just did-verify <did>  # 校验公网 did.json 与本地私钥匹配
 **did:web 路径规则（容易踩坑）：** 裸域名 `did:web:example.com` → `https://example.com/.well-known/did.json`；带路径 `did:web:org.github.io:repo` → `https://org.github.io/repo/did.json`（**没有 .well-known**）。GitHub Pages project site 用后者，did.json 放仓库根即可，无需买域名。
 
 **发布步骤：**
-1. `just did-export <最终DID>` 生成 did.json 并提交 push
-2. 仓库 Settings → Pages → Source: Deploy from a branch → main / (root)
-3. `just did-verify <最终DID>` 确认公网解析与私钥匹配
+1. `just did-export` 生成 did.json 并提交 push（本仓库默认分支为 `master`）
+2. 仓库 Settings → Pages → Source: Deploy from a branch → master / (root)
+3. `just did-verify` 确认公网解析与私钥匹配
 
 **集群导入固定密钥（替代 cert-manager 签发的 `mp-operations.org-tls`）：**
 ```bash
@@ -814,7 +820,7 @@ kubectl --kubeconfig=/tmp/k3s.yaml delete secret mp-operations.org-tls -n provid
 kubectl --kubeconfig=/tmp/k3s.yaml create secret tls mp-operations.org-tls \
     --cert=demo/data/keys/tls.crt --key=demo/data/keys/tls.key -n provider
 ```
-Keycloak signingKey、did helper、marketplace SIOP 都引用该 secret（见 provider.yaml 5.1/5.3），导入后重启相关 Pod 即可。若最终 DID 改为公网版，需同步修改 provider.yaml 中所有 `did:web:mp-operations.org` 出现处及 `did.config.server.hostUrl`。
+Keycloak signingKey、did helper、marketplace SIOP 都引用该 secret（见 provider.yaml 5.1/5.3），导入后重启相关 Pod 即可。若最终 DID 改为公网版，需同步修改 provider.yaml 中所有 `did:web:shenyousota.github.io:dssc-toolbox` 出现处及 `did.config.server.hostUrl`。
 
 **安全说明：** `demo/data/keys/` 中的私钥标注了 DEMO KEY，仅限教学 demo；生产环境严禁提交私钥。
 

@@ -34,7 +34,7 @@ from config import (
 log = setup_logging("cluster-demo")
 
 PROVIDER_NAME = "Energy Data Provider Ltd."
-PROVIDER_DID = "did:web:mp-operations.org"
+PROVIDER_DID = "did:web:shenyousota.github.io:dssc-toolbox"
 CONSUMER_DID = "did:web:fancy-marketplace.biz"
 DATASET_ID = "building-energy-hourly-v1"
 DATASET_URI = "urn:dssc:dataset:building-energy-hourly-v1"
@@ -485,9 +485,9 @@ def step_create_offering(client: httpx.Client) -> dict:
         tir_data = resp.json()
         items = tir_data.get("items", [])
         dids = [i.get("did") for i in items]
-        if "did:web:mp-operations.org" in dids:
+        if "did:web:shenyousota.github.io:dssc-toolbox" in dids:
             provider_registered = True
-            print(f"  ✅ Provider DID 已注册: did:web:mp-operations.org")
+            print(f"  ✅ Provider DID 已注册: did:web:shenyousota.github.io:dssc-toolbox")
         if "did:web:fancy-marketplace.biz" in dids:
             print(f"  ✅ Consumer DID 已注册: did:web:fancy-marketplace.biz")
         print(f"     TIR 共 {len(items)} 个注册 Issuers")

@@ -13,9 +13,9 @@ DID identity 工具 - 生成/管理 Provider 的固定 demo 密钥对与 did.jso
 
 用法：
   uv run python did_identity.py keygen
-  uv run python did_identity.py did --did did:web:mp-operations.org
+  uv run python did_identity.py did --did did:web:shenyousota.github.io:dssc-toolbox
   uv run python did_identity.py k8s-secret
-  uv run python did_identity.py verify --did did:web:mp-operations.org
+  uv run python did_identity.py verify --did did:web:shenyousota.github.io:dssc-toolbox
 """
 
 import argparse
@@ -41,7 +41,7 @@ PUBLIC_JWK_FILE = KEYS_DIR / "provider-key.public.jwk.json"
 TLS_KEY_FILE = KEYS_DIR / "tls.key"
 TLS_CRT_FILE = KEYS_DIR / "tls.crt"
 
-DEFAULT_DID = "did:web:mp-operations.org"
+DEFAULT_DID = "did:web:shenyousota.github.io:dssc-toolbox"
 KEY_ID_SUFFIX = "key-1"
 
 DEMO_KEY_WARNING = "DEMO KEY - NOT FOR PRODUCTION. 虚构主体 Energy Data Provider Ltd. 教学演示专用。"
@@ -100,12 +100,17 @@ def did_web_to_url(did: str) -> str:
 
 
 def did_web_to_repo_path(did: str) -> Path:
-    """did.json 在本仓库中的落盘位置（GitHub Pages deploy-from-branch 从仓库根服务）"""
+    """did.json 在本仓库中的落盘位置（GitHub Pages deploy-from-branch 从仓库根服务）。
+
+    GitHub Pages project site 规则：<org>.github.io/<repo>/<rest> 中第一段是仓库名，
+    映射到本仓库根目录，因此落盘时去掉第一段。
+    其他静态托管（自有域名）按 URL 路径原样落盘。"""
+    parts = did[len("did:web:"):].split(":")
+    host = unquote(parts[0])
     url = did_web_to_url(did)
-    https_prefix = "https://"
-    path = url[len(https_prefix):]
-    # 去掉 host 部分，剩余即仓库内相对路径
-    rel = path.split("/", 1)[1] if "/" in path else ".well-known/did.json"
+    rel = url[len("https://"):].split("/", 1)[1] if "/" in url[len("https://"):] else ".well-known/did.json"
+    if host.endswith(".github.io") and "/" in rel:
+        rel = rel.split("/", 1)[1]
     return REPO_ROOT / rel
 
 
@@ -189,7 +194,7 @@ def cmd_did(args: argparse.Namespace) -> None:
     print()
     print("发布步骤（GitHub Pages，零成本）:")
     print("  1. git add 上述 did.json 并 push")
-    print("  2. 仓库 Settings -> Pages -> Source: Deploy from a branch -> main / (root)")
+    print("  2. 仓库 Settings -> Pages -> Source: Deploy from a branch -> 当前默认分支 / (root)")
     print(f"  3. 验证: curl {did_web_to_url(did)}")
 
 
