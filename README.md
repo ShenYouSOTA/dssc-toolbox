@@ -24,6 +24,50 @@ Data Space Support Centre (DSSC) 工具链研究仓库，围绕统一场景 **Bu
 - Data Space Authority：City Energy Data Space Authority.
 - 数据产品：Building Energy Consumption Dataset API (`building-energy-hourly-v1`).
 
+## 重要通知
+
+### 仓库已更名（2026-08-17）
+
+仓库由 `DSSC-Toolbox` 更名为小写 `dssc-toolbox`（GitHub Pages 路径大小写敏感，did:web 规范要求全小写）。旧地址自动重定向，但本地 clone 请更新 remote：
+
+```bash
+git remote set-url origin https://github.com/ShenYouSOTA/dssc-toolbox.git
+```
+
+### 全组定稿身份（2026-08-17）
+
+跨组凭证签发/验签统一使用以下签名身份：
+
+| 项 | 值 |
+|---|---|
+| DID | `did:web:shenyousota.github.io:dssc-toolbox` |
+| kid | `did:web:shenyousota.github.io:dssc-toolbox#key-1` |
+| 算法 | ES256（EC P-256） |
+| did.json | https://shenyousota.github.io/dssc-toolbox/did.json （公网可解析） |
+| 密钥 | `demo/data/keys/`（demo 专用私钥已提交，虚构主体，非生产用途） |
+| 校验 | `just did-verify`（校验公网 did.json 与本地私钥匹配） |
+
+其他已定稿项：VC Data Model **2.0**（用 `validFrom/validUntil`，不用 `issuanceDate`）、Gaia-X context `https://w3id.org/gaia-x/development#`、legalName `Energy Data Provider Ltd.`、LRN `DEMO-ENERGY-001`、地址 CN / CN-GD、有效期 2026-08-16 ~ 2027-08-16。
+
+语义模型（C 组交接，`C_Semantic_Treehouse/handoff/handoff-to-A-offering-metadata.md` 为机器真源）：
+
+| 项 | 值 |
+|---|---|
+| 模型版本 | **v0.4**（v0.3→v0.4 为 wire-profile-breaking，勿再用 v0.3） |
+| `ex:` namespace | `https://example.org/dssc-energy#` |
+| 版本身份 | `https://w3id.org/dssc-demo/building-energy/v0.4` |
+| Dataset canonical URI | `https://example.org/dssc-energy/datasets/building-energy-hourly-v1` |
+| 数据格式 `dct:format` | `application/json`（精确值，大小写敏感） |
+| metadata 序列化 | `application/ld+json` |
+
+A 组 demo metadata 已按 v0.4 字段合同（D04-R001~R017）迁移，并用 C 组官方 v0.4 SHACL shapes 验证通过（valid 0 warning / invalid 4 violations 符合预期）。
+
+### 跨组 API 检测说明（nip.io 机制）
+
+`scorpio-provider.127.0.0.1.nip.io` 等 `*.127.0.0.1.nip.io` 域名解析到**调用者自己的** 127.0.0.1，这是设计如此。任何组员做 API 检测的方式：clone 仓库 → `just up` 本地起 k3s → demo 自动 port-forward，该域名即指向其本机集群，无需改 hosts 或任何配置。
+
+注意：`data-space-connector/` 目录在 `.gitignore` 中未入库，集群部署 yaml 需单独向 A 组索取（后续计划将 `k3s/` 配置移出 ignore）。
+
 场景包位于 `DSSC_Tool_Learning/DSSC_Minimal_Energy_Scenario/`，包含：
 
 - 数据 payload：`data/building-energy-sample.json`
@@ -56,7 +100,7 @@ Windows 用户可通过 Docker Desktop + WSL2 Ubuntu 部署完整 FIWARE DSC k3s
 - 包含完整的官方组件：Scorpio、APISIX、OPA、ODRL-PAP、VCVerifier、TMForum API、Contract Management 等。
 - 服务入口使用 `*.127.0.0.1.nip.io:8443`。
 - 完整 Demo 覆盖 Provider 上传数据、发布 Offering、Consumer OID4VP 认证、受保护数据下载。
-- 详见 GitHub 分支 [`feature/ytt-full-data-space-demo`](https://github.com/ShenYouSOTA/DSSC-Toolbox/tree/feature/ytt-full-data-space-demo)。
+- 详见 GitHub 分支 [`feature/ytt-full-data-space-demo`](https://github.com/ShenYouSOTA/dssc-toolbox/tree/feature/ytt-full-data-space-demo)。
 
 ## 快速开始
 
@@ -89,8 +133,9 @@ just demo-cluster
 ## 目录结构
 
 ```
-DSSC-Toolbox/
+dssc-toolbox/
 ├── AGENTS.md                       # Agent 工作范围约定
+├── did.json                        # 公网 DID 文档（GitHub Pages 发布，勿手改，用 just did-export 生成）
 ├── justfile                        # 集群管理、部署、Demo 一键命令
 ├── README.md                       # 本文件
 ├── demo/                           # A 组：Python 数据交换演示
@@ -99,9 +144,10 @@ DSSC-Toolbox/
 │   ├── consumer_client.py          # Consumer 客户端
 │   ├── run_demo.py                 # Mock Demo 编排器
 │   ├── demo_real_cluster.py        # Real Cluster Demo
+│   ├── did_identity.py             # DID 密钥/did.json 管理工具
 │   ├── ARCHITECTURE.md             # Demo 架构与通信流程
 │   ├── README.md                   # Demo 详细说明
-│   ├── data/                       # 演示数据（按 scenario 组织）
+│   ├── data/                       # 演示数据（按 scenario 组织）+ keys/（demo 密钥）
 │   └── logs/                       # 运行日志
 ├── data-space-connector/           # FIWARE DSC 上游 Helm Chart 仓库
 │   ├── charts/                     # Helm Umbrella Chart
@@ -136,6 +182,9 @@ DSSC-Toolbox/
 | `just down` | 一键停止并清理 |
 | `just smoke-test` | 检查所有 Pod 状态 |
 | `just pods` | 查看所有 Pod |
+| `just did-export` | 由固定公钥生成 did.json（仓库根） |
+| `just did-verify` | 校验公网 did.json 与本地私钥匹配 |
+| `just did-k8s-secret` | 输出把固定密钥导入 k3s 的命令 |
 
 ## 文档索引
 
