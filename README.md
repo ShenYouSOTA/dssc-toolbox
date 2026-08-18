@@ -49,6 +49,17 @@ git remote set-url origin https://github.com/ShenYouSOTA/dssc-toolbox.git
 
 其他已定稿项：VC Data Model **2.0**（用 `validFrom/validUntil`，不用 `issuanceDate`）、Gaia-X context `https://w3id.org/gaia-x/development#`、legalName `Energy Data Provider Ltd.`、LRN `DEMO-ENERGY-001`、地址 CN / CN-GD、有效期 2026-08-16 ~ 2027-08-16。
 
+JOSE Header 约定（2026-08-18 与 B 组确认，A 组无 golden reference 文件，以此为准）：
+
+| 项 | 值 |
+|---|---|
+| VC-JWT Header | `{"alg":"ES256","kid":"did:web:shenyousota.github.io:dssc-toolbox#key-1","typ":"vc+ld+jwt"}` |
+| VP-JWT Header | `{"alg":"ES256","kid":"did:web:shenyousota.github.io:dssc-toolbox#key-1","typ":"vp+ld+jwt"}` |
+| `cty` | 不使用（仅嵌套 JWT 场景才需要） |
+| VP 组成 | 2 份 VC（LegalPerson + ServiceOffering），不含 LRN Credential |
+| LRN 写法 | 内嵌 `gx:LegalRegistrationNumber` 节点 + `gx:legalRegistrationNumber: "DEMO-ENERGY-001"`，不引用独立 LRN VC（已知限制：本轮 LRN 无可验签 VC 背书） |
+| ServiceOffering `gx:aggregationOf` | `https://example.org/dssc-energy/datasets/building-energy-hourly-v1`（旧值 `urn:dssc:dataset:building-energy-hourly-v1` 作废） |
+
 语义模型（C 组交接，`C_Semantic_Treehouse/handoff/handoff-to-A-offering-metadata.md` 为机器真源）：
 
 | 项 | 值 |
