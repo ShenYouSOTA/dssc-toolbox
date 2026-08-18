@@ -801,11 +801,17 @@ scorpio:
 **工具：** `demo/did_identity.py`（justfile 中有对应任务）：
 
 ```bash
-just did-keygen        # 一次性生成密钥对 -> demo/data/keys/ (已提交)
-just did-export <did>  # 由公钥生成 did.json -> 仓库根 (/.well-known/ 或 /did.json)
-just did-k8s-secret    # 输出导入 k3s 的 kubectl 命令
-just did-verify <did>  # 校验公网 did.json 与本地私钥匹配
+just did-keygen         # 一次性生成密钥对 -> demo/data/keys/ (已提交)
+just did-export <did>   # 由公钥生成 did.json -> 仓库根 (/.well-known/ 或 /did.json)
+just did-cert           # 生成 demo CA + 叶子证书链 -> demo/data/keys/ (供 x5c 用)
+just did-export-x5c <did>  # 生成带 x5c 证书链的 did.json (Gaia-X 信任锚试探)
+just did-k8s-secret     # 输出导入 k3s 的 kubectl 命令
+just did-verify <did>   # 校验公网 did.json 与本地私钥匹配
 ```
+
+**did.json 当前内容（2026-08-18 起）：** JWK 含 `alg: "ES256"` 和 `x5c` 证书链（叶子 + demo CA，叶子 SAN 为 DID，公钥与 JWK 一致）。x5c 只放在 DID 文档中，**密钥材料不变，已签发的 VC/VP-JWT 无需重签**。证书链文件：`demo/data/keys/demo-ca.key`、`demo-ca.crt`、`provider-leaf.crt`。
+
+**Gaia-X Compliance L3 信任锚（跨组联调已知限制）：** Gaia-X Credential Format 要求 verification method 携带 X.509 证书链（x5c/x5u）并声明 `alg`，裸 JWK 会在 L3 信任锚校验被拦截（B 组实测：5 个用例卡 L3、1 个卡 L2，内容层错误全部被前置屏蔽）。嵌入自签 x5c 是格式层试探——自签 CA 不在公开 trust store 中，锚定校验预计仍失败；要完整跑通需自托管 GXDCH 并把 demo CA 加进其 trust store（未纳入本轮交付）。验签证据以公网 did.json + ES256 本地验签为准。
 
 **did:web 路径规则（容易踩坑）：** 裸域名 `did:web:example.com` → `https://example.com/.well-known/did.json`；带路径 `did:web:org.github.io:repo` → `https://org.github.io/repo/did.json`（**没有 .well-known**）。GitHub Pages project site 用后者，did.json 放仓库根即可，无需买域名。
 
@@ -813,6 +819,8 @@ just did-verify <did>  # 校验公网 did.json 与本地私钥匹配
 1. `just did-export` 生成 did.json 并提交 push（本仓库默认分支为 `master`）
 2. 仓库 Settings → Pages → Source: Deploy from a branch → master / (root)
 3. `just did-verify` 确认公网解析与私钥匹配
+
+注意：GitHub Pages CDN 有缓存，push 后 curl 旧属正常，用带参数 URL（如 `?v=$(date +%s)`）确认新版本已生效。
 
 **集群导入固定密钥（替代 cert-manager 签发的 `mp-operations.org-tls`）：**
 ```bash

@@ -424,6 +424,14 @@ kubectl --kubeconfig=/tmp/k3s.yaml get nodes   # 确认 Ready
 
 重启后 `mongodb-0` 可能长时间显示 `1/2 Running`：mongod 容器本身已 Ready，未就绪的是 `mongodb-agent` sidecar（仅 Operator 管理用途），不影响 Demo 运行（另见部署笔记 4.13）。
 
+#### 3.2.11 Gaia-X Compliance 要求 x5c 信任锚，裸 JWK 被 L3 拦截（跨组联调）
+
+**现象：** B 组用本仓库固定 DID 签发的 VP-JWT 送测 Gaia-X Compliance Service，5 个用例在 L3（信任锚）被拦截，1 个在 L2（签名）被拦截，内容层错误用例（INV-01~04）全部被前置屏蔽，只有篡改签名用例（INV-07）按预期在 L2 被检出。
+
+**根因：** Gaia-X Credential Format 要求 DID 文档的 verification method 携带 X.509 证书链（x5c/x5u）并声明 `alg`，锚定到 Gaia-X 认可 CA；早期 did.json 只有 `publicKeyJwk` 裸公钥（kty/crv/x/y），不满足信任锚要求。
+
+**解决方案：** `just did-cert` 生成 demo CA + 叶子证书链（叶子绑定 provider 公钥、SAN 为 DID），`just did-export-x5c` 重新生成 did.json——JWK 增加 `alg: "ES256"` 和 `x5c` 链，密钥材料不变，已签发 VC/VP-JWT 无需重签。自签 CA 不在公开 trust store 中，锚定校验预计仍失败，属本轮接受的已知限制；demo 级信任证明 = 公网 did.json 解析 + ES256 本地验签（详见部署笔记 7.5）。
+
 ### 3.3 Python 客户端踩坑
 
 #### 3.3.1 httpx vs requests
@@ -492,7 +500,7 @@ offering = {
 | **Verifiable Credentials** | W3C VC 数据模型 | Keycloak 签发 SD-JWT / JWT_VC |
 | **NGSI-LD** | 情境感知数据模型 (ETSI) | Scorpio 存储/查询实体 |
 | **TMForum Open API** | 产品目录管理 API | ProductSpecification / ProductOffering |
-| **DID** | 去中心化标识符 (W3C) | `did:web` 注册到 TIR |
+| **DID** | 去中心化标识符 (W3C) | `did:web` 注册到 TIR；跨组签名身份 did.json 发布到 GitHub Pages（含 alg/x5c，见部署笔记 7.5） |
 | **ODRL** | 策略描述语言 (W3C) | APISIX + OPA 策略执行 |
 | **EBSI TIR** | 可信发行者注册表 | Trust Anchor 提供 TIR API |
 

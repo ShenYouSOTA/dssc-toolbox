@@ -358,6 +358,16 @@ did-export did="did:web:shenyousota.github.io:dssc-toolbox":
     @echo "📄 生成 did.json..."
     cd demo && uv run python did_identity.py did --did {{did}}
 
+# 生成 demo CA + 叶子证书链 (供 x5c 嵌入 did.json)
+did-cert:
+    @echo "📜 生成 demo 证书链..."
+    cd demo && uv run python did_identity.py cert
+
+# 生成带 x5c 证书链的 did.json (Gaia-X 信任锚试探)
+did-export-x5c did="did:web:shenyousota.github.io:dssc-toolbox":
+    @echo "📄 生成带 x5c 的 did.json..."
+    cd demo && uv run python did_identity.py did --did {{did}} --x5c
+
 # 输出把固定密钥导入 k3s 的命令 (替代 cert-manager 随机签发)
 did-k8s-secret:
     cd demo && uv run python did_identity.py k8s-secret
