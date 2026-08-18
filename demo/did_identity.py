@@ -6,14 +6,22 @@ DID identity 工具 - 生成/管理 Provider 的固定 demo 密钥对与 did.jso
   2. did         由公钥确定性生成 did.json（发布到 GitHub Pages 供公网解析）
   3. k8s-secret  输出把同一密钥导入 k3s 集群的命令（替代 cert-manager 随机签发）
   4. verify      拉取公网 did.json，校验其与本地私钥匹配
+  5. cert        生成 demo CA + 叶子证书链（供 did --x5c 嵌入 did.json）
 
 安全说明：
   私钥提交进仓库仅限本教学 demo（虚构主体 Energy Data Provider Ltd.）。
   生产环境严禁提交私钥。
 
+x5c 说明（方案 B，Gaia-X Compliance L3 信任锚试探）：
+  demo CA 为自签 CA，不在任何公开 trust store 中，大概率仍无法通过
+  Gaia-X 认可 CA 锚定校验；嵌入 x5c 的目的是验证 Compliance Service 的
+  格式层接受度，并在 demo 层面提供完整证书链证据。密钥材料不变，
+  嵌入 x5c 后已签发的 VC/VP-JWT 无需重签。
+
 用法：
   uv run python did_identity.py keygen
-  uv run python did_identity.py did --did did:web:shenyousota.github.io:dssc-toolbox
+  uv run python did_identity.py cert
+  uv run python did_identity.py did --did did:web:shenyousota.github.io:dssc-toolbox --x5c
   uv run python did_identity.py k8s-secret
   uv run python did_identity.py verify --did did:web:shenyousota.github.io:dssc-toolbox
 """
@@ -40,6 +48,9 @@ PRIVATE_JWK_FILE = KEYS_DIR / "provider-key.private.jwk.json"
 PUBLIC_JWK_FILE = KEYS_DIR / "provider-key.public.jwk.json"
 TLS_KEY_FILE = KEYS_DIR / "tls.key"
 TLS_CRT_FILE = KEYS_DIR / "tls.crt"
+CA_KEY_FILE = KEYS_DIR / "demo-ca.key"
+CA_CRT_FILE = KEYS_DIR / "demo-ca.crt"
+LEAF_CRT_FILE = KEYS_DIR / "provider-leaf.crt"
 
 DEFAULT_DID = "did:web:shenyousota.github.io:dssc-toolbox"
 KEY_ID_SUFFIX = "key-1"
@@ -160,6 +171,88 @@ def cmd_keygen(args: argparse.Namespace) -> None:
     print("下一步: uv run python did_identity.py did --did <最终DID>")
 
 
+def cmd_cert(args: argparse.Namespace) -> None:
+    if CA_CRT_FILE.exists() and not args.force:
+        sys.exit(f"证书链已存在: {CA_CRT_FILE}\n如需重新生成（会使已嵌入的 x5c 失效）: --force")
+
+    provider_key = load_private_key()
+    ca_key = ec.generate_private_key(ec.SECP256R1())
+    now = datetime.now(timezone.utc)
+
+    ca_name = x509.Name([
+        x509.NameAttribute(NameOID.COMMON_NAME, "DSSC Demo CA (DEMO)"),
+        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "City Energy Data Space Authority (DEMO)"),
+    ])
+    ca_cert = (
+        x509.CertificateBuilder()
+        .subject_name(ca_name)
+        .issuer_name(ca_name)
+        .public_key(ca_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - timedelta(days=1))
+        .not_valid_after(now + timedelta(days=3650))
+        .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
+        .add_extension(
+            x509.KeyUsage(
+                digital_signature=False, content_commitment=False, key_encipherment=False,
+                data_encipherment=False, key_agreement=False, key_cert_sign=True,
+                crl_sign=True, encipher_only=False, decipher_only=False,
+            ),
+            critical=True,
+        )
+        .sign(ca_key, hashes.SHA256())
+    )
+
+    leaf_name = x509.Name([
+        x509.NameAttribute(NameOID.COMMON_NAME, "Energy Data Provider Ltd. (DEMO)"),
+        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Energy Data Provider Ltd. (DEMO)"),
+        x509.NameAttribute(NameOID.COUNTRY_NAME, "CN"),
+    ])
+    leaf_cert = (
+        x509.CertificateBuilder()
+        .subject_name(leaf_name)
+        .issuer_name(ca_name)
+        .public_key(provider_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - timedelta(days=1))
+        .not_valid_after(now + timedelta(days=3650))
+        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+        .add_extension(
+            x509.SubjectAlternativeName([x509.UniformResourceIdentifier(args.did)]),
+            critical=False,
+        )
+        .sign(ca_key, hashes.SHA256())
+    )
+
+    CA_KEY_FILE.write_bytes(
+        ca_key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+    )
+    CA_CRT_FILE.write_bytes(ca_cert.public_bytes(serialization.Encoding.PEM))
+    LEAF_CRT_FILE.write_bytes(leaf_cert.public_bytes(serialization.Encoding.PEM))
+
+    print(f"已生成 demo 证书链（{DEMO_KEY_WARNING}）:")
+    print(f"  CA 私钥  : {CA_KEY_FILE.relative_to(REPO_ROOT)}")
+    print(f"  CA 证书  : {CA_CRT_FILE.relative_to(REPO_ROOT)}")
+    print(f"  叶子证书 : {LEAF_CRT_FILE.relative_to(REPO_ROOT)}（绑定 provider 公钥，SAN={args.did}）")
+    print()
+    print("下一步: uv run python did_identity.py did --did <最终DID> --x5c")
+
+
+def load_x5c() -> list:
+    """读取证书链并输出 JWK x5c 格式（base64 标准编码 DER，叶子在前，无 PEM 头）。"""
+    if not LEAF_CRT_FILE.exists() or not CA_CRT_FILE.exists():
+        sys.exit(f"证书链不存在，先运行: uv run python did_identity.py cert")
+    chain = []
+    for path in (LEAF_CRT_FILE, CA_CRT_FILE):
+        cert = x509.load_pem_x509_certificate(path.read_bytes())
+        chain.append(base64.standard_b64encode(cert.public_bytes(serialization.Encoding.DER)).decode("ascii"))
+    return chain
+
+
 def build_did_document(did: str, public_jwk: dict) -> dict:
     kid = f"{did}#{KEY_ID_SUFFIX}"
     return {
@@ -182,6 +275,8 @@ def cmd_did(args: argparse.Namespace) -> None:
     did = args.did
     key = load_private_key()
     public_jwk = public_key_to_jwk(key.public_key())
+    if args.x5c:
+        public_jwk["x5c"] = load_x5c()
 
     doc = build_did_document(did, public_jwk)
     out_path = did_web_to_repo_path(did)
@@ -252,7 +347,13 @@ def main() -> None:
 
     p = sub.add_parser("did", help="由公钥生成 did.json")
     p.add_argument("--did", default=DEFAULT_DID, help=f"最终公网 DID（默认 {DEFAULT_DID}）")
+    p.add_argument("--x5c", action="store_true", help="在 JWK 中嵌入 demo 证书链（先运行 cert）")
     p.set_defaults(func=cmd_did)
+
+    p = sub.add_parser("cert", help="生成 demo CA + 叶子证书链（供 --x5c 使用）")
+    p.add_argument("--did", default=DEFAULT_DID, help="写入叶子证书 SAN 的 DID")
+    p.add_argument("--force", action="store_true", help="覆盖已有证书链")
+    p.set_defaults(func=cmd_cert)
 
     p = sub.add_parser("k8s-secret", help="输出导入 k3s 的命令")
     p.set_defaults(func=cmd_k8s_secret)
