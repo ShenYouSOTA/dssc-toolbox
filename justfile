@@ -1,6 +1,9 @@
 # FIWARE DSC Local Deployment Justfile
 # 使用方法: just <recipe>
 
+# helm / kubectl 默认使用 k3s kubeconfig
+export KUBECONFIG := "/tmp/k3s.yaml"
+
 # 默认列出所有命令
 default:
     @just --list
@@ -14,7 +17,7 @@ check:
     @echo "🔍 检查环境..."
     @docker --version
     @helm version --short
-    @kubectl version --client --short 2>/dev/null || echo "kubectl: not installed"
+    @kubectl version --client 2>/dev/null | head -1 || echo "kubectl: not installed"
     @echo "✅ 环境检查完成"
 
 # ============================================================
@@ -26,6 +29,7 @@ k3s-start:
     @echo "🚀 启动 k3s 集群..."
     @docker info > /dev/null 2>&1 || (echo "❌ Docker 未运行，请先启动 Docker Desktop" && exit 1)
     docker run -d --name k3s-server \
+        --hostname k3s-server \
         --privileged \
         -p 6443:6443 \
         -p 80:80 \
@@ -126,6 +130,9 @@ deploy-trust-anchor:
 # 部署 Provider
 deploy-provider:
     @echo "🏢 部署 Provider..."
+    @kubectl --kubeconfig=/tmp/k3s.yaml create namespace provider 2>/dev/null || true
+    @kubectl --kubeconfig=/tmp/k3s.yaml create secret generic keystore-password --from-literal=password=changeit -n provider 2>/dev/null || true
+    kubectl --kubeconfig=/tmp/k3s.yaml apply -f data-space-connector/k3s/mongodb-rbac.yaml
     cd data-space-connector && helm install provider charts/data-space-connector \
         -f k3s/provider.yaml \
         --namespace provider \
@@ -136,9 +143,11 @@ deploy-provider:
 # 部署 Consumer (处理 ClusterRole 冲突)
 deploy-consumer:
     @echo "👥 部署 Consumer..."
-    @kubectl create secret generic keystore-password --from-literal=password=changeit -n consumer 2>/dev/null || true
+    @kubectl --kubeconfig=/tmp/k3s.yaml create namespace consumer 2>/dev/null || true
+    @kubectl --kubeconfig=/tmp/k3s.yaml create secret generic keystore-password --from-literal=password=changeit -n consumer 2>/dev/null || true
     cd data-space-connector && helm install consumer charts/data-space-connector \
         -f k3s/consumer.yaml \
+        --set decentralizedIam.vcAuthentication.postgres-operator.enabled=false \
         --namespace consumer \
         --create-namespace \
         --wait --timeout 10m

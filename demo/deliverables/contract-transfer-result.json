@@ -1,40 +1,40 @@
 {
   "schemaVersion": "1.0",
-  "generatedAt": "2026-08-13T02:11:07Z",
+  "generatedAt": "2026-08-18T12:35:48Z",
   "responsibleParty": "DSSC Group A",
   "artifactOrigin": "runtime-state-record",
   "executionMode": "simulated-state-machine",
   "connectorExecuted": false,
   "warning": "Negotiation and transfer states are local demo records, not Connector API responses.",
   "negotiation": {
-    "negotiation_id": "neg-9eca311f4b0f",
-    "offering_id": "urn:ngsi-ld:product-offering:0c440b1c-6573-4d70-91d9-11ea79f3e2d8",
+    "negotiation_id": "neg-4cf337c84d22",
+    "offering_id": "urn:ngsi-ld:product-offering:02695e72-7dea-49a0-a0f0-5da5f83fb560",
     "consumer_did": "did:web:fancy-marketplace.biz",
-    "provider_did": "did:web:mp-operations.org",
+    "provider_did": "did:web:shenyousota.github.io:dssc-toolbox",
     "state": "AGREED",
-    "contract_id": "contract-c012d4bf",
+    "contract_id": "contract-32e3cf1a",
     "state_history": [
       {
         "state": "REQUESTED",
-        "timestamp": "2026-08-13T02:11:07Z",
+        "timestamp": "2026-08-18T12:35:48Z",
         "detail": "Consumer initiated negotiation"
       },
       {
         "state": "CONFIRMED",
-        "timestamp": "2026-08-13T02:11:07Z",
+        "timestamp": "2026-08-18T12:35:48Z",
         "detail": "Provider confirmed negotiation"
       },
       {
         "state": "AGREED",
-        "timestamp": "2026-08-13T02:11:07Z",
-        "detail": "Contract contract-c012d4bf created"
+        "timestamp": "2026-08-18T12:35:48Z",
+        "detail": "Contract contract-32e3cf1a created"
       }
     ],
-    "timestamp": "2026-08-13T02:11:07Z"
+    "timestamp": "2026-08-18T12:35:48Z"
   },
   "transfer": {
-    "transfer_id": "transfer-e76032a7749f",
-    "negotiation_id": "neg-9eca311f4b0f",
+    "transfer_id": "transfer-aa45e34dcff2",
+    "negotiation_id": "neg-4cf337c84d22",
     "state": "COMPLETED",
     "data_address": {
       "type": "HttpData",
@@ -43,21 +43,21 @@
     "state_history": [
       {
         "state": "REQUESTED",
-        "timestamp": "2026-08-13T02:11:07Z",
+        "timestamp": "2026-08-18T12:35:48Z",
         "detail": "Consumer initiated transfer"
       },
       {
         "state": "STARTED",
-        "timestamp": "2026-08-13T02:11:07Z",
+        "timestamp": "2026-08-18T12:35:48Z",
         "detail": "Provider started data provisioning"
       },
       {
         "state": "COMPLETED",
-        "timestamp": "2026-08-13T02:11:07Z",
+        "timestamp": "2026-08-18T12:35:48Z",
         "detail": "Data ready for retrieval"
       }
     ],
-    "timestamp": "2026-08-13T02:11:07Z"
+    "timestamp": "2026-08-18T12:35:48Z"
   },
   "containsSensitiveCredentials": false
 }

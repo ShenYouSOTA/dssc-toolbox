@@ -70,6 +70,49 @@ demo/
 | 用途 | 开发演示、流程理解 | 部署验证、集成测试 |
 | 启动命令 | `just demo-python` | `just demo-cluster` |
 
+## Demo 的输入与输出
+
+### 输入（Provider 侧）
+
+来自 `demo/data/scenarios/DSSC_Minimal_Energy_Scenario/`：
+
+| 文件 | 作用 |
+|------|------|
+| `metadata/data-product-valid.jsonld` | 数据产品元数据（JSON-LD / DCAT） |
+| `mock-api/openapi.yaml` | 数据接口的 OpenAPI 合同模板 |
+| `data/building-energy-sample.json` | 建筑小时级能耗数据（payload） |
+| `shapes/building-energy-shapes.ttl` | SHACL shapes（可选，validation demo） |
+| `gaia-x/*.template.jsonld` | Gaia-X 凭证模板（可选） |
+
+### 输出
+
+- 终端打印 7 步流程结果 + 最终汇总表
+- `demo/deliverables/` 结构化交付物：`connector-publication-result.json`、`contract-transfer-result.json`、`provider-profile.json`、`offering-manifest.json`、`openapi-scorpio.yaml`
+- `demo/logs/` 运行日志
+
+## 展示内容速查（含 just 命令）
+
+### Mock Demo（纯本地）
+
+| 展示内容 | just 命令 |
+|---------|-----------|
+| 完整 7 步流程（发布→发现→认证→协商→传输→取数→验证） | `just demo-python` |
+| 完整流程 + 保存日志到 `demo/logs/` | `just demo-run` |
+| 仅启动 Provider Mock 服务器 | `just demo-provider` |
+| 仅运行 Consumer 客户端流程 | `just demo-client` |
+| 参数化演示（按建筑 ID 过滤数据） | `just demo-building BLD-001` |
+
+### Real Cluster Demo（真实 k3s）
+
+| 展示内容 | just 命令 |
+|---------|-----------|
+| 启动集群 + 部署全部服务（前置，约 15-25 分钟） | `just up` |
+| 集群健康检查（7 个 ingress 端点） | `just demo-cluster-health` |
+| 真实集群端到端数据交换（Keycloak 认证 + TMForum 目录 + Scorpio 取数） | `just demo-cluster` |
+| port-forward 手动调试 | `just demo-cluster-pf` |
+| 查看 Pod / 日志（排障演示） | `just pods` / `just smoke-test` / `just logs-keycloak` |
+| 关机前停止集群 | `just down` |
+
 ## macOS 部署说明
 
 macOS 用户有两条路径运行本 Demo。
@@ -149,6 +192,17 @@ Provider 发布 Offering (加载 JSON-LD metadata + OpenAPI contract)
 ```
 
 > 详细时序图和代码位置见 [ARCHITECTURE.md](./ARCHITECTURE.md)
+
+## 口播稿（约 1 分钟）
+
+> "我们演示的是一次 DSSC 数据空间的端到端数据交换。左侧是数据提供方 Energy Provider，右侧是消费方 City Analytics Lab。
+> 首先，Provider 把数据产品发布为 Data Offering，包含 JSON-LD 元数据和 OpenAPI 合同模板。
+> Consumer 第一步浏览数据目录，查看 Offering 的许可证和使用政策；第二步完成身份认证，获得带 DID 的 JWT 令牌——真实集群里这一步由 Keycloak 和 VCVerifier 完成。
+> 接下来是数据空间的两个核心状态机：合同协商从 REQUESTED 走到 AGREED，传输过程从 REQUESTED 走到 COMPLETED。
+> 最后 Consumer 携带令牌真正拉到建筑能耗数据，并完成格式校验。
+> 整个过程证明：数据不是裸奔的，而是带着身份、合同和许可政策在数据空间里受控流动。交付物 JSON 也保存在 deliverables 目录里供审计。"
+
+口播提示：用 `just demo-building BLD-001` 展示参数化能力；用 Real Cluster Demo 强调"这不是 mock，是真实部署"；收尾指向 `demo/deliverables/`。
 
 ## 配置管理
 
@@ -406,7 +460,8 @@ kubectl get ingress -A
 | Certificate 一直处于 `Issuing` / `False` | `ca-secret` 或 `ca-issuer` 缺失 | 按部署笔记 4.11 创建自签名 CA 证书链 |
 | Provider Keycloak `prepare-keystore` 失败 | `keystore-password` Secret 缺失 | `kubectl create secret generic keystore-password --from-literal=password=changeit -n provider` |
 | Consumer Keycloak `prepare-keystore` 失败 | `keystore-password` Secret 缺失 | `kubectl create secret generic keystore-password --from-literal=password=changeit -n consumer` |
-| `mongodb-0` 一直 `Pending` | `mongodb-database` ServiceAccount 缺失 | `kubectl create serviceaccount mongodb-database -n provider` |
+| `mongodb-0` 一直 `Pending` | `mongodb-database` ServiceAccount 缺失 | `kubectl apply -f data-space-connector/k3s/mongodb-rbac.yaml`（`deploy-provider` 已自动执行） |
+| `mongodb-0` 卡在 `1/2`，agent readiness probe 报 `pods is forbidden` | `mongodb-database` Role 缺 `pods` 权限 | 同上，重新 apply `mongodb-rbac.yaml` |
 | `mongodb-0` 的 `mongodb-agent` `ImagePullBackOff` | 镜像 tag 不存在 | 替换为本地已有镜像，如 `quay.io/mongodb/mongodb-agent-ubi:108.0.6.8796-1` |
 | BAE charging / logic proxy `CrashLoopBackOff` | SCRAM-SHA-1/256 不匹配或 `charging`/`belp` 用户缺失 | 创建 SCRAM-SHA-256 用户并设置 `BAE_CB_MONGO_AUTH_MECHANISM=SCRAM-SHA-256` / `BAE_LP_MONGO_AUTH_MECHANISM=SCRAM-SHA-256` |
 | Consumer Helm 安装失败，ClusterRole 冲突 | 嵌套 postgres-operator 与全局 operator 冲突 | 加 `--set decentralizedIam.vcAuthentication.postgres-operator.enabled=false` |
@@ -414,6 +469,31 @@ kubectl get ingress -A
 | `just smoke-test` 显示异常 Pod | 可能只是 mongodb-agent 镜像未就绪 | 查看 `kubectl describe pod mongodb-0 -n provider`，确认 mongod 容器是否 Running |
 
 更详细的根因与完整修复命令见 [部署笔记 (A_fiware_deployment_notes.md)](./A_fiware_deployment_notes.md)。
+
+## 跨组对接（B/C/D 如何复用 A 组成果）
+
+其他组不需要 import 本 demo 的 Python 代码，而是通过三层稳定契约对接：
+
+### 1. 交付物文件 `demo/deliverables/`（主要接口）
+
+| 文件 | 使用方 | 用途 |
+|------|--------|------|
+| `provider-profile.json` | B 组 | Provider 身份信息（无敏感凭证），据此签发 legal-participant / compliance 凭证 |
+| `offering-manifest.json` | B、C 组 | 区分 canonical ID（`urn:dssc:service-offering:building-energy-hourly-v1`）与运行时 TMForum ID；签 service-offering credential 时引用 canonical ID |
+| `openapi-scorpio.yaml` | C、D 组 | 数据交付接口的 OpenAPI 描述；C 组做语义映射，D 组 ITB 做 conformance 测试的目标规范 |
+| `connector-publication-result.json` / `contract-transfer-result.json` | D 组 | 端到端流程的运行时证据，校验流程是否符合 DSSC 蓝图 |
+
+### 2. Scenario 目录（语义/验证素材）
+
+- **C 组**：直接消费 `metadata/data-product-valid.jsonld`（JSON-LD/DCAT）与 `shapes/building-energy-shapes.ttl`（SHACL）；新增 scenario 只需建目录并设 `DEMO_SCENARIO=<name>`。
+- **D 组**：`data-product-valid.jsonld` 与 `data-product-invalid.jsonld` 是为 ITB / SHACL validator 准备的正反例，验证步骤见 `VALIDATION_GUIDE.md`。
+
+### 3. 运行时 API（集成测试用）
+
+- Mock：`just demo-provider` 起服务后，`/api/catalog`、`/auth/token`、`/api/contract-negotiations` 等端点可直接 HTTP 调用（见上文 API 端点表）。
+- 真实集群：B 组可通过 ingress 直连 Keycloak / Verifier / TIR 验证凭证签发链。
+
+一句话：B 组拿 `provider-profile.json` 和 canonical URN 去签凭证，C 组拿 JSON-LD/SHACL 做语义治理，D 组拿 OpenAPI + 正反例 metadata + 流程结果 JSON 做 ITB 测试。
 
 ## 相关文档
 

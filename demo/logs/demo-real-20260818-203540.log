@@ -1,0 +1,132 @@
+20:35:41 [cluster-demo] INFO: Scorpio entity created: urn:ngsi-ld:Building:BLD-001
+20:35:41 [cluster-demo] INFO: ProductSpecification created: urn:ngsi-ld:product-specification:48a8e12f-e4f6-4ad4-afc6-f8c8fa3a1415
+20:35:43 [cluster-demo] INFO: ProductOffering created: urn:ngsi-ld:product-offering:02695e72-7dea-49a0-a0f0-5da5f83fb560
+20:35:43 [cluster-demo] INFO: ODRL policy round-trip verified for offering urn:ngsi-ld:product-offering:02695e72-7dea-49a0-a0f0-5da5f83fb560
+20:35:44 [cluster-demo] INFO: Catalog discovered: 2 offerings
+20:35:48 [cluster-demo] INFO: Consumer token obtained, expires_in=299s
+20:35:48 [cluster-demo] INFO: Contract negotiation: id=neg-4cf337c84d22 state=AGREED contract=contract-32e3cf1a
+20:35:48 [cluster-demo] INFO: Transfer process: id=transfer-aa45e34dcff2 state=COMPLETED
+20:35:48 [cluster-demo] INFO: Data retrieved from Scorpio: urn:ngsi-ld:Building:BLD-001
+20:35:48 [cluster-demo] INFO: Demo summary: success=True
+
+🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟
+
+  FIWARE DSC 真实集群端到端 Demo
+  Provider 创建 Offering → Consumer 发现 → 认证 → 协商 → 传输 → 获取数据
+
+🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟
+
+============================================================
+📡 步骤1: 集群健康检查
+============================================================
+  ✅ TIR: 200
+  ✅ Provider Keycloak: 200
+  ✅ Consumer Keycloak: 200
+  ✅ TMForum API: 200
+  ✅ TIL: 200
+  ✅ Dashboard: 200
+  ✅ Scorpio: 400
+
+  📊 健康检查: 7/7 通过
+
+============================================================
+🏢 步骤2: Provider 创建 Data Offering
+============================================================
+
+  [Scorpio] 创建 Building 实体...
+  ✅ 实体创建: urn:ngsi-ld:Building:BLD-001 (409)
+
+  [TMForum] 创建 ProductSpecification...
+  ✅ Specification: urn:ngsi-ld:product-specification:48a8e12f-e4f6-4ad4-afc6-f8c8fa3a1415
+
+  [TMForum] 创建 ProductOffering...
+  ✅ Offering: urn:ngsi-ld:product-offering:02695e72-7dea-49a0-a0f0-5da5f83fb560
+     Name: Building Energy Consumption Data
+  ✅ ODRL policy 回读一致 (access + contract policy 原样返回)
+
+  [TIR] 验证 Provider DID 注册...
+  ✅ Consumer DID 已注册: did:web:fancy-marketplace.biz
+     TIR 共 2 个注册 Issuers
+
+============================================================
+📡 步骤3: Consumer 发现 Catalog
+============================================================
+
+  ✅ 发现 2 个 Offerings:
+     - Building Energy Consumption Data: urn:ngsi-ld:product-offering:0c440b1c-6573-4d70-91d9-11ea79f3e2d8
+       Status: Active
+     - Building Energy Consumption Data: urn:ngsi-ld:product-offering:02695e72-7dea-49a0-a0f0-5da5f83fb560
+       Status: Active
+
+============================================================
+🔐 步骤4: Consumer Keycloak 认证
+============================================================
+  Token Endpoint: https://keycloak-consumer.127.0.0.1.nip.io/realms/test-realm/protocol/openid-connect/token
+
+  ✅ Token 获取成功 (expires_in: 299s)
+     Subject: 5e5b1cc6-1165-4e95-abd6-1042d5e2e9bf
+     Name: employee
+
+============================================================
+📝 步骤5: Contract Negotiation
+============================================================
+
+  [REQUESTED] 2026-08-18T12:35:48Z
+     Offering: urn:ngsi-ld:product-offering:02695e72-7dea-49a0-a0f0-5da5f83fb560
+     Consumer DID: did:web:fancy-marketplace.biz
+     Provider DID: did:web:shenyousota.github.io:dssc-toolbox
+
+  [CONFIRMED] 2026-08-18T12:35:48Z
+     Provider acknowledged
+
+  [AGREED] 2026-08-18T12:35:48Z
+     Negotiation ID: neg-4cf337c84d22
+     Contract ID: contract-32e3cf1a
+
+  ✅ 协商完成!
+     状态流转: REQUESTED → CONFIRMED → AGREED
+
+============================================================
+🔄 步骤6: Transfer Process
+============================================================
+
+  [REQUESTED] 2026-08-18T12:35:48Z
+     Negotiation ID: neg-4cf337c84d22
+
+  [STARTED] 2026-08-18T12:35:48Z
+     Data source: Scorpio NGSI-LD
+
+  [COMPLETED] 2026-08-18T12:35:48Z
+     Transfer ID: transfer-aa45e34dcff2
+
+  ✅ 传输完成!
+     状态流转: REQUESTED → STARTED → COMPLETED
+
+============================================================
+📊 步骤7: Consumer 获取数据
+============================================================
+
+  ✅ 从 Scorpio 获取实体:
+     ID: urn:ngsi-ld:Building:BLD-001
+     Type: Building
+     Name: Shenzhen Nanshan Tower
+     Address: Shenzhen Nanshan
+
+============================================================
+📊 流程总结
+============================================================
+
+  ✅ 健康检查: 7/7 通过
+  ✅ 创建 Offering: urn:ngsi-ld:product-offering:02695e72-7dea-49a0-a0f0-5da5f83fb560
+  ✅ ODRL policy 回读一致: access=True contract=True
+  ✅ 发现 Catalog: 2 个 Offerings
+  ✅ Consumer 认证: Token 获取成功
+  ✅ Contract Negotiation: AGREED | contract-32e3cf1a
+  ✅ Transfer Process: COMPLETED | transfer-aa45e34dcff2
+  ✅ 数据获取: 1 条记录
+------------------------------------------------------------
+✅ 真实集群端到端数据交换流程全部完成!
+
+  结构化交付结果: /home/Sota/research/DSSC-Toolbox/demo/deliverables
+
+  耗时: 7.3s

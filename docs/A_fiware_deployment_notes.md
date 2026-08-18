@@ -509,17 +509,21 @@ kubectl get certificate -A
 
 **现象：** `mongodb-0` Pod 一直 `Pending`，事件显示 `serviceaccount "mongodb-database" not found`。
 
-**根因：** `managedMongo` StatefulSet 模板显式设置了 `serviceAccountName: mongodb-database`，但 Chart 没有自动创建该 ServiceAccount。
+**根因：** `managedMongo` StatefulSet 模板显式设置了 `serviceAccountName: mongodb-database`，但 Chart 没有自动创建该 ServiceAccount（`mongo-operator.enabled: false`，operator 单独部署在 `default` 命名空间，因此 community-operator 子chart 的 `database_roles.yaml` 不会渲染）。
 
-**解决方案：**
+**解决方案（已固化）：** SA + Role + RoleBinding 已写入 `data-space-connector/k3s/mongodb-rbac.yaml`，`just deploy-provider` 会在 helm install 前自动 `kubectl apply`：
+
 ```bash
-kubectl create serviceaccount mongodb-database -n provider
+kubectl apply -f data-space-connector/k3s/mongodb-rbac.yaml
 ```
+
+> **注意：** Role 必须包含 `pods: [get, patch, delete]` 权限，否则 `mongodb-agent` 的 readiness probe 会报 `pods "mongodb-0" is forbidden` 并 panic，Pod 永远卡在 `1/2`。只手动 `kubectl create serviceaccount` 而不建 Role/RoleBinding 会导致该问题。
 
 **验证命令：**
 ```bash
 kubectl get serviceaccount mongodb-database -n provider
-kubectl get pods -n provider | grep mongodb
+kubectl auth can-i get pods -n provider --as system:serviceaccount:provider:mongodb-database
+kubectl get pod mongodb-0 -n provider   # 应为 2/2 Running
 ```
 
 ---

@@ -1,11 +1,11 @@
 {
   "schemaVersion": "1.0",
-  "generatedAt": "2026-08-13T02:11:07Z",
+  "generatedAt": "2026-08-18T12:35:48Z",
   "responsibleParty": "DSSC Group A",
   "canonicalOffering": {
     "id": "urn:dssc:service-offering:building-energy-hourly-v1",
     "idDecisionStatus": "proposed-pending-ab-confirmation",
-    "providerId": "did:web:mp-operations.org",
+    "providerId": "did:web:shenyousota.github.io:dssc-toolbox",
     "providerName": "Energy Data Provider Ltd.",
     "datasetId": "building-energy-hourly-v1",
     "datasetUri": "urn:dssc:dataset:building-energy-hourly-v1",
@@ -28,8 +28,8 @@
   "deployment": {
     "platform": "FIWARE Data Space Connector",
     "environment": "local-real-cluster",
-    "productOfferingId": "urn:ngsi-ld:product-offering:0c440b1c-6573-4d70-91d9-11ea79f3e2d8",
-    "productSpecificationId": "urn:ngsi-ld:product-specification:95280867-5224-4325-b4db-c0de9c8cb188",
+    "productOfferingId": "urn:ngsi-ld:product-offering:02695e72-7dea-49a0-a0f0-5da5f83fb560",
+    "productSpecificationId": "urn:ngsi-ld:product-specification:48a8e12f-e4f6-4ad4-afc6-f8c8fa3a1415",
     "catalogueUrl": "https://tm-forum-api.127.0.0.1.nip.io/tmf-api/productCatalogManagement/v4/productOffering",
     "resourceIds": [
       "urn:ngsi-ld:Building:BLD-001"
