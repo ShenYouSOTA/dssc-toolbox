@@ -254,6 +254,22 @@ def load_x5c() -> list:
     return chain
 
 
+def write_x5u_pem(did: str) -> str:
+    """把证书链写成 PEM 文件托管在 did.json 同目录（叶子在前），返回 x5u URL。
+
+    适用场景：验签方用 OpenSSL 直接解析内嵌 x5c 失败时，改用 x5u 让其
+    自行拉取标准 PEM 文件（Gaia-X Credential Format 同时接受 x5c/x5u）。"""
+    if not LEAF_CRT_FILE.exists() or not CA_CRT_FILE.exists():
+        sys.exit(f"证书链不存在，先运行: uv run python did_identity.py cert")
+    pem = LEAF_CRT_FILE.read_bytes() + CA_CRT_FILE.read_bytes()
+    pem_path = did_web_to_repo_path(did).parent / "x5c-chain.pem"
+    pem_path.write_bytes(pem)
+    x5u = did_web_to_url(did).rsplit("/", 1)[0] + "/x5c-chain.pem"
+    print(f"证书链 PEM : {pem_path.relative_to(REPO_ROOT)}")
+    print(f"x5u URL    : {x5u}")
+    return x5u
+
+
 def build_did_document(did: str, public_jwk: dict) -> dict:
     kid = f"{did}#{KEY_ID_SUFFIX}"
     return {
@@ -278,6 +294,8 @@ def cmd_did(args: argparse.Namespace) -> None:
     public_jwk = public_key_to_jwk(key.public_key())
     if args.x5c:
         public_jwk["x5c"] = load_x5c()
+    elif args.x5u:
+        public_jwk["x5u"] = write_x5u_pem(did)
 
     doc = build_did_document(did, public_jwk)
     out_path = did_web_to_repo_path(did)
@@ -348,7 +366,9 @@ def main() -> None:
 
     p = sub.add_parser("did", help="由公钥生成 did.json")
     p.add_argument("--did", default=DEFAULT_DID, help=f"最终公网 DID（默认 {DEFAULT_DID}）")
-    p.add_argument("--x5c", action="store_true", help="在 JWK 中嵌入 demo 证书链（先运行 cert）")
+    g = p.add_mutually_exclusive_group()
+    g.add_argument("--x5c", action="store_true", help="在 JWK 中嵌入证书链（先运行 cert）")
+    g.add_argument("--x5u", action="store_true", help="托管 PEM 链到 did.json 同目录并引用 URI（先运行 cert）")
     p.set_defaults(func=cmd_did)
 
     p = sub.add_parser("cert", help="生成 demo CA + 叶子证书链（供 --x5c 使用）")

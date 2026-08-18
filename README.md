@@ -58,7 +58,7 @@ JOSE Header 约定（2026-08-18 定稿，以 B 组实际签发并送测 Gaia-X C
 | VP 组成 | 2 份 VC（LegalPerson + ServiceOffering），不含 LRN Credential |
 | LRN 写法 | 内嵌 `gx:LegalRegistrationNumber` 节点 + `gx:legalRegistrationNumber: "DEMO-ENERGY-001"`，不引用独立 LRN VC（已知限制：本轮 LRN 无可验签 VC 背书） |
 | ServiceOffering `gx:aggregationOf` | `https://example.org/dssc-energy/datasets/building-energy-hourly-v1`（旧值 `urn:dssc:dataset:building-energy-hourly-v1` 作废） |
-| Gaia-X Compliance 已知限制 | Compliance Service 要求信任锚为 X.509 证书链（x5c/x5u）；did.json 已嵌入 demo 自签 CA 证书链（`did_identity.py cert` + `did --x5c`，密钥材料不变、已签 VC/VP 无需重签），但自签 CA 不在公开 trust store 中，L3 锚定校验预计仍会被拦截，属本轮接受的限制；验签证据以公网 did.json + ES256 验签为准 |
+| Gaia-X Compliance 已知限制 | Compliance Service 要求信任锚为 X.509 证书链（x5c/x5u）+ `alg`；did.json 已声明 `alg: ES256` 并以 x5u 引用 PEM 证书链（`did_identity.py cert` + `did --x5u`，链文件 `x5c-chain.pem` 托管在 did.json 同目录，密钥材料不变、已签 VC/VP 无需重签），但自签 CA 不在公开 trust store 中，L3 锚定校验预计仍会被拦截，属本轮接受的限制；验签证据以公网 did.json + ES256 验签为准 |
 
 语义模型（C 组交接，`C_Semantic_Treehouse/handoff/handoff-to-A-offering-metadata.md` 为机器真源）：
 

@@ -368,6 +368,11 @@ did-export-x5c did="did:web:shenyousota.github.io:dssc-toolbox":
     @echo "📄 生成带 x5c 的 did.json..."
     cd demo && uv run python did_identity.py did --did {{did}} --x5c
 
+# 托管 PEM 证书链并生成 x5u 引用的 did.json (验签方 OpenSSL 解析 x5c 失败时用)
+did-export-x5u did="did:web:shenyousota.github.io:dssc-toolbox":
+    @echo "📄 生成 x5u 版 did.json + x5c-chain.pem..."
+    cd demo && uv run python did_identity.py did --did {{did}} --x5u
+
 # 输出把固定密钥导入 k3s 的命令 (替代 cert-manager 随机签发)
 did-k8s-secret:
     cd demo && uv run python did_identity.py k8s-secret

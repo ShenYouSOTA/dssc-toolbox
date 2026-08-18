@@ -430,7 +430,7 @@ kubectl --kubeconfig=/tmp/k3s.yaml get nodes   # 确认 Ready
 
 **根因：** Gaia-X Credential Format 要求 DID 文档的 verification method 携带 X.509 证书链（x5c/x5u）并声明 `alg`，锚定到 Gaia-X 认可 CA；早期 did.json 只有 `publicKeyJwk` 裸公钥（kty/crv/x/y），不满足信任锚要求。
 
-**解决方案：** `just did-cert` 生成 demo CA + 叶子证书链（叶子绑定 provider 公钥、SAN 为 DID），`just did-export-x5c` 重新生成 did.json——JWK 增加 `alg: "ES256"` 和 `x5c` 链，密钥材料不变，已签发 VC/VP-JWT 无需重签。自签 CA 不在公开 trust store 中，锚定校验预计仍失败，属本轮接受的已知限制；demo 级信任证明 = 公网 did.json 解析 + ES256 本地验签（详见部署笔记 7.5）。
+**解决方案：** `just did-cert` 生成 demo CA + 叶子证书链（叶子绑定 provider 公钥、SAN 为 DID），`just did-export-x5u` 把 PEM 链托管到 did.json 同目录并重新生成 did.json——JWK 增加 `alg: "ES256"` 和 `x5u` 引用（早期曾内嵌 x5c，因验签方 OpenSSL 解码失败改为 x5u），密钥材料不变，已签发 VC/VP-JWT 无需重签。自签 CA 不在公开 trust store 中，锚定校验预计仍失败，属本轮接受的已知限制；demo 级信任证明 = 公网 did.json 解析 + ES256 本地验签（详见部署笔记 7.5）。
 
 ### 3.3 Python 客户端踩坑
 
