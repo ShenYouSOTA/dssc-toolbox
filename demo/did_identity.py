@@ -82,6 +82,7 @@ def public_key_to_jwk(key: ec.EllipticCurvePublicKey) -> dict:
     return {
         "kty": "EC",
         "crv": "P-256",
+        "alg": "ES256",
         "x": _int_to_b64url(numbers.x),
         "y": _int_to_b64url(numbers.y),
     }
