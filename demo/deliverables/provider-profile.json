@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0",
-  "generatedAt": "2026-08-18T12:35:48Z",
+  "generatedAt": "2026-08-18T13:13:15Z",
   "responsibleParty": "DSSC Group A",
   "providerId": "did:web:shenyousota.github.io:dssc-toolbox",
   "providerName": "Energy Data Provider Ltd.",
@@ -8,7 +8,7 @@
   "identitySource": {
     "type": "FIWARE Trusted Issuers Registry",
     "registryUrl": "https://tir.127.0.0.1.nip.io/v4/issuers",
-    "registrationObserved": false
+    "registrationObserved": true
   },
   "scope": "local-real-cluster",
   "gaiaXComplianceStatus": "to-be-validated-by-group-b",
